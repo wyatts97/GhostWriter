@@ -36,7 +36,7 @@
           <p class="form-help">Cron expression: minute hour day-of-month month day-of-week</p>
         </div>
 
-        {{ input.select_input("prompt_id", "Prompt", options=[{'value': '', 'label': '— Select a prompt —'}] + [{'value': p.id|string, 'label': p.name} for p in prompts], value=schedule.prompt_id|string if schedule else '') }}
+        {{ input.select_input("prompt_id", "Prompt", options=prompt_options, value=schedule.prompt_id|string if schedule else '') }}
 
         <!-- Feed Selection -->
         <div class="form-group">

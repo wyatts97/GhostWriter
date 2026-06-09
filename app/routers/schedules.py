@@ -76,6 +76,9 @@ async def new_schedule_form(
     """Show the create schedule form."""
     prompts_result = await session.execute(select(Prompt).order_by(Prompt.name))
     prompts = prompts_result.scalars().all()
+    prompt_options = [{"value": "", "label": "— Select a prompt —"}] + [
+        {"value": str(p.id), "label": p.name} for p in prompts
+    ]
 
     feeds_result = await session.execute(select(RSSFeed).order_by(RSSFeed.name))
     feeds = feeds_result.scalars().all()
@@ -87,6 +90,7 @@ async def new_schedule_form(
             "request": request,
             "schedule": None,
             "prompts": prompts,
+            "prompt_options": prompt_options,
             "feeds": feeds,
             "action": "create",
             "active_page": "schedules",
@@ -143,6 +147,9 @@ async def edit_schedule_form(
 
     prompts_result = await session.execute(select(Prompt).order_by(Prompt.name))
     prompts = prompts_result.scalars().all()
+    prompt_options = [{"value": "", "label": "— Select a prompt —"}] + [
+        {"value": str(p.id), "label": p.name} for p in prompts
+    ]
 
     feeds_result = await session.execute(select(RSSFeed).order_by(RSSFeed.name))
     feeds = feeds_result.scalars().all()
@@ -154,6 +161,7 @@ async def edit_schedule_form(
             "request": request,
             "schedule": schedule,
             "prompts": prompts,
+            "prompt_options": prompt_options,
             "feeds": feeds,
             "action": "edit",
             "active_page": "schedules",

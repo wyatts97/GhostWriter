@@ -1,0 +1,19 @@
+version: "3.9"
+
+services:
+  ghostwriter:
+    build: .
+    container_name: ghostwriter
+    ports:
+      - "3639:3639"
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3639/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s

@@ -22,43 +22,41 @@ class Base(DeclarativeBase):
 async def init_db():
     """Run Alembic migrations on startup. Falls back to create_all if not yet migrated.
 
-    Uses a separate thread for ``alembic.command.upgrade()`` because it calls
-    ``asyncio.run()`` inside ``env.py``, which collides with FastAPI's running
-    event loop.
+    Uses a separate thread for ``alembic.command.upgrade()`` / ``stamp()`` because
+    they call ``asyncio.run()`` inside ``env.py``, which collides with FastAPI's
+    already-running event loop.
     """
     import asyncio
 
     from alembic.config import Config as AlembicConfig
     from alembic.runtime.migration import MigrationContext
-    from alembic.script import ScriptDirectory
 
     async with engine.begin() as conn:
 
-        def _check_and_stamp(sync_conn):
-            """Check tracking; create_all + stamp if fresh, otherwise do nothing
-            here (upgrade runs in a separate thread below)."""
+        def _check_and_baseline(sync_conn):
+            """Check alembic tracking; if absent, create all tables (inline,
+            safe) so the threaded stamp call below has a consistent schema."""
             mc = MigrationContext.configure(sync_conn)
-            current_rev = mc.get_current_revision()
-
-            if current_rev is None:
-                # No alembic tracking yet — run create_all for baseline, then stamp
+            rev = mc.get_current_revision()
+            if rev is None:
                 Base.metadata.create_all(sync_conn)
-                alembic_cfg = AlembicConfig("alembic.ini")
-                script = ScriptDirectory.from_config(alembic_cfg)
-                mc.stamp(script.get_current_head())
+            return rev
 
-        await conn.run_sync(_check_and_stamp)
+        current_rev = await conn.run_sync(_check_and_baseline)
 
-    # Run pending migrations in a *separate thread* so that env.py can safely
-    # call asyncio.run() without conflicting with the already-running loop.
-    def _run_upgrade() -> None:
-        from alembic.config import Config as AlembicConfig
+    cfg = AlembicConfig("alembic.ini")
+
+    if current_rev is None:
+        # Fresh database — stamp with head revision so alembic knows where we
+        # are.  Runs in a thread because env.py → asyncio.run().
+        from alembic.command import stamp
+
+        await asyncio.to_thread(stamp, cfg, "head")
+    else:
+        # Run pending migrations in a separate thread.
         from alembic.command import upgrade
 
-        cfg = AlembicConfig("alembic.ini")
-        upgrade(cfg, "head")
-
-    await asyncio.to_thread(_run_upgrade)
+        await asyncio.to_thread(upgrade, cfg, "head")
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:

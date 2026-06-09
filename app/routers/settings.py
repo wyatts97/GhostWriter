@@ -195,27 +195,45 @@ async def test_llm_connection(
     request: Request,
     session: AsyncSession = Depends(get_session),
 ):
-    """Test the LLM API connection with a simple request."""
+    """Test the LLM API connection with a simple request.
+    Uses the active provider (openai / openrouter) from settings.
+    """
     from app.services.llm_client import LlmClient
 
-    result = await session.execute(
-        select(Setting).where(Setting.key == "llm_api_base")
+    # Determine active provider
+    provider_result = await session.execute(
+        select(Setting).where(Setting.key == "llm_provider")
     )
-    base_setting = result.scalar_one_or_none()
+    provider_setting = provider_result.scalar_one_or_none()
+    provider = provider_setting.value if provider_setting else "openai"
 
-    result = await session.execute(
-        select(Setting).where(Setting.key == "llm_api_key")
-    )
-    key_setting = result.scalar_one_or_none()
-
-    result = await session.execute(
-        select(Setting).where(Setting.key == "llm_default_model")
-    )
-    model_setting = result.scalar_one_or_none()
-
-    api_base = base_setting.value if base_setting else "https://api.openai.com/v1"
-    api_key = key_setting.value if key_setting else ""
-    model = model_setting.value if model_setting else "gpt-4o"
+    if provider == "openrouter":
+        base_row = (await session.execute(
+            select(Setting).where(Setting.key == "openrouter_api_base")
+        )).scalar_one_or_none()
+        key_row = (await session.execute(
+            select(Setting).where(Setting.key == "openrouter_api_key")
+        )).scalar_one_or_none()
+        model_row = (await session.execute(
+            select(Setting).where(Setting.key == "openrouter_default_model")
+        )).scalar_one_or_none()
+        # Fall back to runtime config if DB is empty (fresh .env)
+        api_base = base_row.value if base_row else app_settings.llm_api_base
+        api_key = key_row.value if key_row else app_settings.llm_api_key
+        model = model_row.value if model_row else app_settings.llm_default_model
+    else:
+        base_row = (await session.execute(
+            select(Setting).where(Setting.key == "llm_api_base")
+        )).scalar_one_or_none()
+        key_row = (await session.execute(
+            select(Setting).where(Setting.key == "llm_api_key")
+        )).scalar_one_or_none()
+        model_row = (await session.execute(
+            select(Setting).where(Setting.key == "llm_default_model")
+        )).scalar_one_or_none()
+        api_base = base_row.value if base_row else app_settings.llm_api_base
+        api_key = key_row.value if key_row else app_settings.llm_api_key
+        model = model_row.value if model_row else app_settings.llm_default_model
 
     llm = LlmClient(base_url=api_base, api_key=api_key, default_model=model)
     try:

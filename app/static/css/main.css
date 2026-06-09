@@ -350,6 +350,18 @@ ul, ol {
   background-color: rgba(255, 255, 255, 0.1);
 }
 
+.btn-icon-settings:hover {
+  background-color: rgba(255, 255, 255, 0.18);
+}
+
+.nav-separator {
+  display: inline-block;
+  width: 1px;
+  height: 24px;
+  background-color: rgba(255, 255, 255, 0.15);
+  margin: 0 4px;
+}
+
 /* ── Cards ──────────────────────────────────────────────────────────────── */
 .card-feature-light {
   background-color: var(--color-surface-card);

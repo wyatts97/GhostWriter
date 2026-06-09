@@ -43,6 +43,7 @@ async def settings_page(
         settings_dict[key] = setting.value if setting else DEFAULT_VALUES.get(key, "")
 
     return templates.TemplateResponse(
+        request,
         "settings.html",
         {
             "request": request,
@@ -102,6 +103,7 @@ async def save_settings(
     app_settings.log_level = log_level or app_settings.log_level
 
     return templates.TemplateResponse(
+        request,
         "settings.html",
         {
             "request": request,

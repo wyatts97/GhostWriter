@@ -58,6 +58,7 @@ async def list_articles(
     }
 
     return templates.TemplateResponse(
+        request,
         "articles/list.html",
         {
             "request": request,
@@ -101,6 +102,7 @@ async def article_detail(
             tags = [article.tags] if article.tags else []
 
     return templates.TemplateResponse(
+        request,
         "articles/detail.html",
         {
             "request": request,

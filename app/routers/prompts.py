@@ -19,6 +19,7 @@ async def list_prompts(request: Request, session: AsyncSession = Depends(get_ses
     prompts = result.scalars().all()
 
     return templates.TemplateResponse(
+        request,
         "prompts/list.html",
         {"request": request, "prompts": prompts, "active_page": "prompts"},
     )
@@ -28,6 +29,7 @@ async def list_prompts(request: Request, session: AsyncSession = Depends(get_ses
 async def new_prompt_form(request: Request):
     """Show the create prompt form."""
     return templates.TemplateResponse(
+        request,
         "prompts/form.html",
         {
             "request": request,
@@ -75,6 +77,7 @@ async def edit_prompt_form(
         return RedirectResponse(url="/prompts", status_code=303)
 
     return templates.TemplateResponse(
+        request,
         "prompts/form.html",
         {
             "request": request,

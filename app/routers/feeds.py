@@ -19,6 +19,7 @@ async def list_feeds(request: Request, session: AsyncSession = Depends(get_sessi
     feeds = result.scalars().all()
 
     return templates.TemplateResponse(
+        request,
         "feeds/list.html",
         {"request": request, "feeds": feeds, "active_page": "feeds"},
     )

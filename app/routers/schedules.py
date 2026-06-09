@@ -58,6 +58,7 @@ async def list_schedules(
         )
 
     return templates.TemplateResponse(
+        request,
         "schedules/list.html",
         {
             "request": request,
@@ -80,6 +81,7 @@ async def new_schedule_form(
     feeds = feeds_result.scalars().all()
 
     return templates.TemplateResponse(
+        request,
         "schedules/form.html",
         {
             "request": request,
@@ -146,6 +148,7 @@ async def edit_schedule_form(
     feeds = feeds_result.scalars().all()
 
     return templates.TemplateResponse(
+        request,
         "schedules/form.html",
         {
             "request": request,

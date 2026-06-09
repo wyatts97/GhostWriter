@@ -54,4 +54,4 @@ async def dashboard(request: Request, session: AsyncSession = Depends(get_sessio
         "active_page": "dashboard",
     }
 
-    return templates.TemplateResponse("dashboard.html", context)
+    return templates.TemplateResponse(request, "dashboard.html", context)

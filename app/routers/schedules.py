@@ -101,20 +101,23 @@ async def new_schedule_form(
 @router.post("/new")
 async def create_schedule(
     request: Request,
-    name: str = Form(...),
+    name: str = Form(""),
     cron_expression: str = Form(...),
-    prompt_id: int = Form(...),
+    prompt_id: str = Form(""),
     feed_ids: str = Form("[]"),
     publish_mode: str = Form("draft"),
     max_articles_per_run: int = Form(1),
-    active: bool = Form(True),
+    active: bool = Form(False),
     session: AsyncSession = Depends(get_session),
 ):
     """Create a new schedule."""
+    if not name:
+        return RedirectResponse(url="/schedules/new", status_code=303)
+
     schedule = Schedule(
         name=name,
         cron_expression=cron_expression,
-        prompt_id=prompt_id if prompt_id else None,
+        prompt_id=int(prompt_id) if prompt_id else None,
         feed_ids=feed_ids,
         publish_mode=publish_mode,
         max_articles_per_run=max_articles_per_run,
@@ -173,16 +176,19 @@ async def edit_schedule_form(
 async def update_schedule(
     schedule_id: int,
     request: Request,
-    name: str = Form(...),
+    name: str = Form(""),
     cron_expression: str = Form(...),
-    prompt_id: int = Form(...),
+    prompt_id: str = Form(""),
     feed_ids: str = Form("[]"),
     publish_mode: str = Form("draft"),
     max_articles_per_run: int = Form(1),
-    active: bool = Form(True),
+    active: bool = Form(False),
     session: AsyncSession = Depends(get_session),
 ):
     """Update an existing schedule."""
+    if not name:
+        return RedirectResponse(url=f"/schedules/{schedule_id}/edit", status_code=303)
+
     result = await session.execute(
         select(Schedule).where(Schedule.id == schedule_id)
     )
@@ -191,7 +197,7 @@ async def update_schedule(
     if schedule:
         schedule.name = name
         schedule.cron_expression = cron_expression
-        schedule.prompt_id = prompt_id if prompt_id else None
+        schedule.prompt_id = int(prompt_id) if prompt_id else None
         schedule.feed_ids = feed_ids
         schedule.publish_mode = publish_mode
         schedule.max_articles_per_run = max_articles_per_run

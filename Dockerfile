@@ -14,6 +14,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY app/ app/
 
+# Copy Alembic migration files (needed at runtime for init_db)
+COPY alembic.ini .
+COPY alembic/ alembic/
+
 # Create data directory for SQLite
 RUN mkdir -p /app/data
 

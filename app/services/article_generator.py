@@ -84,13 +84,15 @@ async def generate_article(
 
     # ── 5. Call LLM ───────────────────────────────────────────────────────
     if not llm_client:
-        # Late import to avoid circular dependency
-        from app.config import settings
+        # Load from runtime config (DB settings + .env fallback)
+        from app.services.runtime_config import RuntimeConfig
 
+        runtime = await RuntimeConfig.load(session)
+        llm_cfg = runtime.resolve_llm_config()
         llm_client = LlmClient(
-            base_url=settings.llm_api_base,
-            api_key=settings.llm_api_key,
-            default_model=settings.llm_default_model,
+            base_url=llm_cfg["base_url"],
+            api_key=llm_cfg["api_key"],
+            default_model=llm_cfg["model"],
         )
 
     model = prompt.model_override or None

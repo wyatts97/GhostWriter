@@ -30,17 +30,10 @@ async def list_articles(
     result = await session.execute(query)
     articles = result.scalars().all()
 
-    # Attach prompt names
+    # Attach prompt names (uses selectin relationship, no N+1)
     article_data = []
     for article in articles:
-        prompt_name = ""
-        if article.prompt_id:
-            p_result = await session.execute(
-                select(Prompt).where(Prompt.id == article.prompt_id)
-            )
-            prompt = p_result.scalar_one_or_none()
-            prompt_name = prompt.name if prompt else "Deleted"
-
+        prompt_name = article.prompt.name if article.prompt else ""
         article_data.append(
             {
                 "article": article,
@@ -85,13 +78,7 @@ async def article_detail(
     if not article:
         return RedirectResponse(url="/articles", status_code=303)
 
-    prompt_name = ""
-    if article.prompt_id:
-        p_result = await session.execute(
-            select(Prompt).where(Prompt.id == article.prompt_id)
-        )
-        prompt = p_result.scalar_one_or_none()
-        prompt_name = prompt.name if prompt else "Deleted"
+    prompt_name = article.prompt.name if article.prompt else "Deleted"
 
     # Parse JSON fields for display
     tags = []
@@ -120,8 +107,8 @@ async def publish_article(
     session: AsyncSession = Depends(get_session),
 ):
     """Publish a draft article to Ghost."""
-    from app.config import settings
     from app.services.ghost_client import GhostClient
+    from app.services.runtime_config import RuntimeConfig
 
     import markdown as md_lib
 
@@ -138,9 +125,10 @@ async def publish_article(
             {"success": False, "error": f"Article is already {article.status}"}
         )
 
+    runtime = await RuntimeConfig.load(session)
     ghost = GhostClient(
-        admin_url=settings.ghost_admin_url,
-        admin_api_key=settings.ghost_admin_api_key,
+        admin_url=runtime.ghost_admin_url,
+        admin_api_key=runtime.ghost_admin_api_key,
     )
 
     try:
@@ -194,10 +182,10 @@ async def regenerate_article(
     session: AsyncSession = Depends(get_session),
 ):
     """Regenerate an article using the same prompt and sources."""
-    from app.config import settings
     from app.services.article_generator import generate_article
     from app.services.ghost_client import GhostClient
     from app.services.llm_client import LlmClient
+    from app.services.runtime_config import RuntimeConfig
 
     result = await session.execute(
         select(GeneratedArticle).where(GeneratedArticle.id == article_id)
@@ -207,15 +195,17 @@ async def regenerate_article(
     if not article:
         return JSONResponse({"success": False, "error": "Article not found"})
 
+    runtime = await RuntimeConfig.load(session)
+    llm_cfg = runtime.resolve_llm_config()
     llm = LlmClient(
-        base_url=settings.llm_api_base,
-        api_key=settings.llm_api_key,
-        default_model=settings.llm_default_model,
+        base_url=llm_cfg["base_url"],
+        api_key=llm_cfg["api_key"],
+        default_model=llm_cfg["model"],
     )
 
     ghost = GhostClient(
-        admin_url=settings.ghost_admin_url,
-        admin_api_key=settings.ghost_admin_api_key,
+        admin_url=runtime.ghost_admin_url,
+        admin_api_key=runtime.ghost_admin_api_key,
     )
 
     try:

@@ -1,7 +1,10 @@
-"""OpenAI-compatible LLM client for chat completions with structured output."""
+"""OpenAI-compatible LLM client for chat completions with structured output.
 
+Uses a shared httpx.AsyncClient for connection pooling across all requests.
+"""
+
+import asyncio
 import json
-import logging
 from typing import Any
 
 import httpx
@@ -29,8 +32,7 @@ class LlmApiError(Exception):
 class LlmClient:
     """Async client for OpenAI-compatible chat completion APIs.
 
-    Works with OpenAI, Anthropic (via /v1 proxy), Deepseek, Gemini,
-    and any provider that exposes an OpenAI-compatible /v1/chat/completions endpoint.
+    Maintains a single httpx.AsyncClient for connection reuse.
     """
 
     def __init__(
@@ -46,6 +48,11 @@ class LlmClient:
         self.default_model = default_model
         self.timeout = timeout
         self.max_retries = max_retries
+        self._client = httpx.AsyncClient(timeout=timeout)
+
+    async def close(self) -> None:
+        """Close the underlying HTTP client."""
+        await self._client.aclose()
 
     def _build_headers(self) -> dict[str, str]:
         return {
@@ -103,7 +110,7 @@ class LlmClient:
             ) from exc
 
     async def _request(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """Make an HTTP request with retry logic."""
+        """Make an HTTP request with retry logic and exponential backoff."""
         url = f"{self.base_url}/chat/completions"
         headers = self._build_headers()
 
@@ -111,8 +118,7 @@ class LlmClient:
 
         for attempt in range(1, self.max_retries + 1):
             try:
-                async with httpx.AsyncClient(timeout=self.timeout) as client:
-                    response = await client.post(url, json=payload, headers=headers)
+                response = await self._client.post(url, json=payload, headers=headers)
 
                 if response.status_code == 200:
                     data = response.json()
@@ -138,8 +144,6 @@ class LlmClient:
                             attempt=attempt,
                             retry_in_seconds=wait,
                         )
-                        import asyncio
-
                         await asyncio.sleep(wait)
                         continue
                     raise LlmRateLimitError(
@@ -154,8 +158,6 @@ class LlmClient:
                             attempt=attempt,
                             retry_in_seconds=wait,
                         )
-                        import asyncio
-
                         await asyncio.sleep(wait)
                         continue
                     raise LlmApiError(
@@ -173,8 +175,6 @@ class LlmClient:
                     logger.warning(
                         "llm_timeout", attempt=attempt, retry_in_seconds=wait
                     )
-                    import asyncio
-
                     await asyncio.sleep(wait)
                     continue
                 raise LlmTimeoutError(
@@ -194,18 +194,13 @@ class LlmClient:
                         retry_in_seconds=wait,
                         error=str(exc),
                     )
-                    import asyncio
-
                     await asyncio.sleep(wait)
                     continue
+
                 raise LlmApiError(
-                    f"LLM request failed after {self.max_retries} attempts: {exc}"
-                ) from exc
+                    f"LLM API request failed after {self.max_retries} attempts"
+                ) from last_exception
 
-        # Should not reach here, but just in case
-        raise LlmApiError(f"LLM request failed after {self.max_retries} attempts")
-
-    @staticmethod
-    def count_tokens(text: str) -> int:
-        """Rough token estimate (4 chars per token)."""
-        return len(text) // 4
+        raise LlmApiError(
+            f"LLM API request failed after {self.max_retries} attempts"
+        ) from last_exception

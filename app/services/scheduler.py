@@ -90,7 +90,7 @@ def _add_schedule_job(schedule: Schedule) -> None:
 
 async def _run_schedule_job(schedule_id: int) -> None:
     """Execute a schedule: generate articles and send to Ghost."""
-    from app.config import settings
+    from app.services.runtime_config import RuntimeConfig
 
     logger.info("schedule_job_running", schedule_id=schedule_id)
 
@@ -115,16 +115,20 @@ async def _run_schedule_job(schedule_id: int) -> None:
         except (json.JSONDecodeError, TypeError):
             feed_ids = []
 
+        # Load runtime config — respects DB settings, falls back to .env
+        runtime = await RuntimeConfig.load(session)
+        llm_cfg = runtime.resolve_llm_config()
+
         # Initialize clients
         llm_client = LlmClient(
-            base_url=settings.llm_api_base,
-            api_key=settings.llm_api_key,
-            default_model=settings.llm_default_model,
+            base_url=llm_cfg["base_url"],
+            api_key=llm_cfg["api_key"],
+            default_model=llm_cfg["model"],
         )
 
         ghost_client = GhostClient(
-            admin_url=settings.ghost_admin_url,
-            admin_api_key=settings.ghost_admin_api_key,
+            admin_url=runtime.ghost_admin_url,
+            admin_api_key=runtime.ghost_admin_api_key,
         )
 
         # Generate articles
@@ -166,7 +170,7 @@ async def _run_schedule_job(schedule_id: int) -> None:
 
 async def run_schedule_now(schedule_id: int) -> dict:
     """Manually trigger a schedule run. Returns a summary dict."""
-    from app.config import settings
+    from app.services.runtime_config import RuntimeConfig
 
     async with async_session_factory() as session:
         result = await session.execute(
@@ -185,15 +189,18 @@ async def run_schedule_now(schedule_id: int) -> dict:
         except (json.JSONDecodeError, TypeError):
             feed_ids = []
 
+        runtime = await RuntimeConfig.load(session)
+        llm_cfg = runtime.resolve_llm_config()
+
         llm_client = LlmClient(
-            base_url=settings.llm_api_base,
-            api_key=settings.llm_api_key,
-            default_model=settings.llm_default_model,
+            base_url=llm_cfg["base_url"],
+            api_key=llm_cfg["api_key"],
+            default_model=llm_cfg["model"],
         )
 
         ghost_client = GhostClient(
-            admin_url=settings.ghost_admin_url,
-            admin_api_key=settings.ghost_admin_api_key,
+            admin_url=runtime.ghost_admin_url,
+            admin_api_key=runtime.ghost_admin_api_key,
         )
 
         article = await generate_article(

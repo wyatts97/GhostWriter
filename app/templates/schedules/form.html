@@ -14,6 +14,12 @@
       </div>
     </div>
 
+    {% if error %}
+    <div class="alert alert-danger" style="background: rgba(255, 0, 0, 0.08); color: var(--color-accent-danger); padding: var(--spacing-md); border-radius: var(--radius-md); margin-bottom: var(--spacing-lg);">
+      {{ error }}
+    </div>
+    {% endif %}
+
     <div class="card-feature-light">
       <form method="post" action="{% if action == 'edit' %}/schedules/{{ schedule.id }}/edit{% else %}/schedules/new{% endif %}">
         {{ input.text_input("name", "Schedule Name", value=schedule.name if schedule else '', placeholder="e.g., Morning Tech Digest") }}

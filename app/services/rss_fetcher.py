@@ -1,5 +1,6 @@
 """RSS/Atom feed fetcher with content extraction and dedup."""
 
+import asyncio
 from datetime import datetime, timezone
 from typing import Any
 
@@ -98,18 +99,35 @@ async def fetch_feed(feed_id: int, session: AsyncSession) -> int:
     return new_count
 
 
-async def fetch_all_feeds(session: AsyncSession) -> dict[int, int]:
-    """Fetch all active RSS feeds.
+async def fetch_all_feeds(
+    session: AsyncSession,
+    max_concurrent: int = 5,
+) -> dict[int, int]:
+    """Fetch all active RSS feeds concurrently.
 
+    Uses asyncio.gather with a semaphore to limit concurrent fetches.
     Returns a dict mapping feed_id -> new_entries_count.
     """
     result = await session.execute(select(RSSFeed).where(RSSFeed.active == True))  # noqa: E712
     feeds = result.scalars().all()
 
+    semaphore = asyncio.Semaphore(max_concurrent)
+
+    async def _fetch_one(feed_id: int) -> tuple[int, int]:
+        async with semaphore:
+            count = await fetch_feed(feed_id, session)
+            return feed_id, count
+
+    tasks = [_fetch_one(f.id) for f in feeds]
+    outcomes = await asyncio.gather(*tasks, return_exceptions=True)
+
     results: dict[int, int] = {}
-    for feed in feeds:
-        count = await fetch_feed(feed.id, session)
-        results[feed.id] = count
+    for outcome in outcomes:
+        if isinstance(outcome, Exception):
+            logger.error("rss_concurrent_fetch_error", error=str(outcome))
+        else:
+            feed_id, count = outcome
+            results[feed_id] = count
 
     return results
 

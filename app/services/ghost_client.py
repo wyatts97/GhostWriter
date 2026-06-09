@@ -1,4 +1,7 @@
-"""Ghost Admin API client for creating and managing blog posts."""
+"""Ghost Admin API client for creating and managing blog posts.
+
+Caches JWTs until they are 50% expired to reduce unnecessary signing overhead.
+"""
 
 import base64
 import hashlib
@@ -23,11 +26,7 @@ class GhostApiError(Exception):
 
 
 class GhostClient:
-    """Client for the Ghost Admin API.
-
-    Handles JWT-based authentication and provides methods
-    for creating posts with full SEO metadata.
-    """
+    """Client for the Ghost Admin API with JWT caching."""
 
     def __init__(self, admin_url: str = "", admin_api_key: str = ""):
         self.admin_url = admin_url.rstrip("/")
@@ -35,6 +34,11 @@ class GhostClient:
         self._api_key_id: str | None = None
         self._api_key_secret: str | None = None
         self._parse_api_key()
+
+        # JWT cache
+        self._cached_jwt: str | None = None
+        self._jwt_issued_at: float = 0.0
+        self._jwt_lifetime: float = 300.0  # 5 minutes
 
     def _parse_api_key(self) -> None:
         """Parse the Ghost Admin API Key into its id and secret components."""
@@ -46,35 +50,35 @@ class GhostClient:
         self._api_key_id = parts[0]
         self._api_key_secret = parts[1]
 
-    def _generate_jwt(self) -> str:
-        """Generate a short-lived JWT for Ghost Admin API authentication.
+    def _get_jwt(self) -> str:
+        """Return a valid JWT, generating a new one only if the cached token is >50% expired."""
+        if self._cached_jwt and (time.time() - self._jwt_issued_at) < (self._jwt_lifetime * 0.5):
+            return self._cached_jwt
+        self._cached_jwt = self._generate_jwt()
+        self._jwt_issued_at = time.time()
+        return self._cached_jwt
 
-        The JWT is signed with the Admin API Key secret and includes
-        the key ID in the header for Ghost to identify which key is being used.
-        """
+    def _generate_jwt(self) -> str:
+        """Generate a short-lived JWT for Ghost Admin API authentication."""
         if not self._api_key_id or not self._api_key_secret:
             raise GhostAuthError("Admin API Key is not properly configured")
 
-        # Header
         header = {
             "alg": "HS256",
             "typ": "JWT",
             "kid": self._api_key_id,
         }
 
-        # Payload - 5 minute expiry
         now = int(time.time())
         payload = {
-            "exp": now + 300,  # 5 minutes
+            "exp": now + int(self._jwt_lifetime),
             "iat": now,
             "aud": "/admin/",
         }
 
-        # Encode
         header_b64 = self._base64url_encode(json.dumps(header).encode())
         payload_b64 = self._base64url_encode(json.dumps(payload).encode())
 
-        # Sign
         signing_input = f"{header_b64}.{payload_b64}"
         signature = hmac.new(
             self._api_key_secret.encode("utf-8"),
@@ -91,8 +95,8 @@ class GhostClient:
         return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
 
     def _get_headers(self) -> dict[str, str]:
-        """Generate auth headers for Ghost Admin API requests."""
-        token = self._generate_jwt()
+        """Generate auth headers for Ghost Admin API requests using cached JWT."""
+        token = self._get_jwt()
         return {
             "Authorization": f"Ghost {token}",
             "Content-Type": "application/json",
@@ -100,10 +104,7 @@ class GhostClient:
         }
 
     async def test_connection(self) -> bool:
-        """Test the Ghost Admin API connection by fetching the site settings.
-
-        Returns True if the connection is valid, False otherwise.
-        """
+        """Test the Ghost Admin API connection by fetching the site settings."""
         if not self.admin_url or not self.admin_api_key:
             return False
 
@@ -148,28 +149,7 @@ class GhostClient:
         twitter_title: str | None = None,
         twitter_description: str | None = None,
     ) -> dict[str, Any]:
-        """Create a new post in Ghost via the Admin API.
-
-        Args:
-            title: Post title
-            content_html: Post body as HTML
-            status: "draft" or "published"
-            excerpt: Custom excerpt for the post
-            feature_image: URL for the feature image
-            feature_image_alt: Alt text for the feature image
-            tags: List of tag names
-            meta_title: SEO meta title
-            meta_description: SEO meta description
-            og_image: Open Graph image URL
-            og_title: Open Graph title
-            og_description: Open Graph description
-            twitter_image: Twitter card image URL
-            twitter_title: Twitter card title
-            twitter_description: Twitter card description
-
-        Returns:
-            The created post data from Ghost API.
-        """
+        """Create a new post in Ghost via the Admin API."""
         url = f"{self.admin_url}/ghost/api/admin/posts/"
         headers = self._get_headers()
 
@@ -189,7 +169,6 @@ class GhostClient:
         if tags:
             post["tags"] = [{"name": t} for t in tags]
 
-        # SEO fields
         if meta_title:
             post["meta_title"] = meta_title
         if meta_description:
@@ -207,62 +186,26 @@ class GhostClient:
         if twitter_description:
             post["twitter_description"] = twitter_description
 
-        payload: dict[str, Any] = {"posts": [post]}
+        body = {"posts": [post]}
 
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(url, json=payload, headers=headers)
-        except httpx.TimeoutException as exc:
-            logger.error("ghost_post_timeout", title=title)
-            raise GhostApiError("Ghost API request timed out") from exc
-        except httpx.RequestError as exc:
-            logger.error("ghost_post_connection_error", title=title, error=str(exc))
-            raise GhostApiError(f"Ghost API connection error: {exc}") from exc
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(url, json=body, headers=headers)
 
-        if response.status_code in (200, 201):
-            data = response.json()
-            created_post = data.get("posts", [{}])[0]
-            logger.info(
-                "ghost_post_created",
-                post_id=created_post.get("id"),
-                title=title,
-                status=status,
+        if response.status_code not in (200, 201):
+            logger.error(
+                "ghost_create_post_failed",
+                status_code=response.status_code,
+                response=response.text[:500],
             )
-            return created_post
-
-        if response.status_code == 401:
-            raise GhostAuthError(
-                f"Ghost API authentication failed: {response.text}"
-            )
-        if response.status_code == 422:
             raise GhostApiError(
-                f"Ghost API validation error: {response.text}"
-            )
-        if response.status_code == 429:
-            raise GhostApiError(
-                f"Ghost API rate limited: {response.text}"
+                f"Ghost API returned {response.status_code}: {response.text[:200]}"
             )
 
-        raise GhostApiError(
-            f"Ghost API error ({response.status_code}): {response.text}"
+        data = response.json()
+        created = data.get("posts", [{}])[0]
+        logger.info(
+            "ghost_post_created",
+            post_id=created.get("id"),
+            status=status,
         )
-
-    async def get_post(self, post_id: str) -> dict[str, Any]:
-        """Fetch a single post by ID."""
-        url = f"{self.admin_url}/ghost/api/admin/posts/{post_id}/"
-        headers = self._get_headers()
-
-        try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                response = await client.get(url, headers=headers)
-
-            if response.status_code == 200:
-                data = response.json()
-                return data.get("posts", [{}])[0]
-
-            raise GhostApiError(
-                f"Failed to fetch post ({response.status_code}): {response.text}"
-            )
-
-        except httpx.RequestError as exc:
-            raise GhostApiError(f"Ghost API connection error: {exc}") from exc
+        return created

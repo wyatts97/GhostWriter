@@ -26,26 +26,35 @@ async def list_schedules(
     result = await session.execute(select(Schedule).order_by(Schedule.name))
     schedules = result.scalars().all()
 
-    # Build display names for linked prompt and feeds
+    # Build display names for linked prompt and feeds (batch queries, no N+1)
+    # Collect all unique feed IDs across all schedules
+    all_feed_ids: set[int] = set()
+    for s in schedules:
+        if s.feed_ids:
+            try:
+                ids = json.loads(s.feed_ids)
+                all_feed_ids.update(ids)
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+    # Batch load feed names
+    feed_name_map: dict[int, str] = {}
+    if all_feed_ids:
+        f_result = await session.execute(
+            select(RSSFeed).where(RSSFeed.id.in_(list(all_feed_ids)))
+        )
+        for f in f_result.scalars().all():
+            feed_name_map[f.id] = f.name
+
     schedule_data = []
     for s in schedules:
-        prompt_name = ""
-        if s.prompt_id:
-            p_result = await session.execute(
-                select(Prompt).where(Prompt.id == s.prompt_id)
-            )
-            prompt = p_result.scalar_one_or_none()
-            prompt_name = prompt.name if prompt else "Deleted Prompt"
+        prompt_name = s.prompt.name if s.prompt else "Deleted Prompt"
 
         feed_names = []
         if s.feed_ids:
             try:
-                feed_ids = json.loads(s.feed_ids)
-                if feed_ids:
-                    f_result = await session.execute(
-                        select(RSSFeed).where(RSSFeed.id.in_(feed_ids))
-                    )
-                    feed_names = [f.name for f in f_result.scalars().all()]
+                ids = json.loads(s.feed_ids)
+                feed_names = [feed_name_map.get(fid, "Deleted") for fid in ids]
             except (json.JSONDecodeError, TypeError):
                 pass
 
@@ -71,6 +80,7 @@ async def list_schedules(
 @router.get("/new", response_class=HTMLResponse)
 async def new_schedule_form(
     request: Request,
+    error: str | None = None,
     session: AsyncSession = Depends(get_session),
 ):
     """Show the create schedule form."""
@@ -93,6 +103,7 @@ async def new_schedule_form(
             "prompt_options": prompt_options,
             "feeds": feeds,
             "action": "create",
+            "error": error or "",
             "active_page": "schedules",
         },
     )
@@ -113,6 +124,16 @@ async def create_schedule(
     """Create a new schedule."""
     if not name:
         return RedirectResponse(url="/schedules/new", status_code=303)
+
+    # Validate cron expression
+    from apscheduler.triggers.cron import CronTrigger
+    try:
+        CronTrigger.from_crontab(cron_expression)
+    except (ValueError, AttributeError) as exc:
+        return RedirectResponse(
+            url=f"/schedules/new?error=Invalid+cron+expression:+{exc}",
+            status_code=303,
+        )
 
     schedule = Schedule(
         name=name,
@@ -137,6 +158,7 @@ async def create_schedule(
 async def edit_schedule_form(
     schedule_id: int,
     request: Request,
+    error: str | None = None,
     session: AsyncSession = Depends(get_session),
 ):
     """Show the edit schedule form."""
@@ -167,6 +189,7 @@ async def edit_schedule_form(
             "prompt_options": prompt_options,
             "feeds": feeds,
             "action": "edit",
+            "error": error or "",
             "active_page": "schedules",
         },
     )
@@ -188,6 +211,16 @@ async def update_schedule(
     """Update an existing schedule."""
     if not name:
         return RedirectResponse(url=f"/schedules/{schedule_id}/edit", status_code=303)
+
+    # Validate cron expression
+    from apscheduler.triggers.cron import CronTrigger
+    try:
+        CronTrigger.from_crontab(cron_expression)
+    except (ValueError, AttributeError) as exc:
+        return RedirectResponse(
+            url=f"/schedules/{schedule_id}/edit?error=Invalid+cron+expression:+{exc}",
+            status_code=303,
+        )
 
     result = await session.execute(
         select(Schedule).where(Schedule.id == schedule_id)

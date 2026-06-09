@@ -1,7 +1,7 @@
 from typing import Optional
 
 from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.models.base import TimestampMixin
@@ -22,6 +22,9 @@ class Schedule(TimestampMixin, Base):
         String(10), default="draft"
     )  # "draft" or "publish"
     max_articles_per_run: Mapped[int] = mapped_column(Integer, default=1)
+
+    # Relationships for eager loading
+    prompt: Mapped[Optional["Prompt"]] = relationship("Prompt", lazy="selectin")
 
     def __repr__(self) -> str:
         return f"<Schedule id={self.id} name={self.name!r} active={self.active}>"

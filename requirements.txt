@@ -24,6 +24,9 @@ cryptography>=44.0.0
 # Settings management
 pydantic-settings>=2.7.0
 
+# Database migrations
+alembic>=1.14.0
+
 # Content processing
 markdown>=3.7.0
 trafilatura>=1.12.0

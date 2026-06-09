@@ -6,44 +6,13 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings as app_settings
 from app.database import get_session
 from app.main import templates
 from app.models.settings import Setting
+from app.services.runtime_config import RuntimeConfig
+from app.utils.encryption import encrypt_value
 
 router = APIRouter(tags=["settings"])
-
-SETTING_KEYS = [
-    # Provider selector
-    "llm_provider",
-    # OpenAI / generic
-    "llm_api_base",
-    "llm_api_key",
-    "llm_default_model",
-    # OpenRouter
-    "openrouter_api_base",
-    "openrouter_api_key",
-    "openrouter_default_model",
-    # Ghost
-    "ghost_admin_url",
-    "ghost_admin_api_key",
-    # General
-    "log_level",
-]
-
-# Map setting keys to their equivalent app_settings attr for fallback
-ENV_FALLBACK_MAP = {
-    "llm_api_base": "llm_api_base",
-    "llm_api_key": "llm_api_key",
-    "llm_default_model": "llm_default_model",
-    "ghost_admin_url": "ghost_admin_url",
-    "ghost_admin_api_key": "ghost_admin_api_key",
-    "log_level": "log_level",
-    "llm_provider": None,  # not in .env, default to "openai"
-    "openrouter_api_base": "https://openrouter.ai/api/v1",
-    "openrouter_api_key": "",  # no .env equivalent
-    "openrouter_default_model": "",  # no .env equivalent
-}
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -52,22 +21,13 @@ async def settings_page(
     session: AsyncSession = Depends(get_session),
 ):
     """Show the settings page."""
-    settings_dict = {}
+    config = await RuntimeConfig.load(session)
 
-    for key in SETTING_KEYS:
-        result = await session.execute(
-            select(Setting).where(Setting.key == key)
-        )
-        setting = result.scalar_one_or_none()
-        if setting:
-            settings_dict[key] = setting.value
-        else:
-            # Fall back to .env value (app_settings) if available
-            env_key = ENV_FALLBACK_MAP.get(key)
-            if env_key:
-                settings_dict[key] = getattr(app_settings, env_key, "") or ""
-            else:
-                settings_dict[key] = env_key if isinstance(env_key, str) else ""
+    # Convert dataclass to dict for the template (skip _raw)
+    settings_dict = {
+        key: getattr(config, key, "")
+        for key in RuntimeConfig.setting_keys()
+    }
 
     return templates.TemplateResponse(
         request,
@@ -99,7 +59,7 @@ async def save_settings(
     log_level: str = Form("info"),
     session: AsyncSession = Depends(get_session),
 ):
-    """Save all settings."""
+    """Save all settings to DB (encrypted) — stops mutating the pydantic singleton."""
     form_values = {
         "llm_provider": llm_provider,
         "llm_api_base": llm_api_base,
@@ -113,35 +73,7 @@ async def save_settings(
         "log_level": log_level,
     }
 
-    for key, value in form_values.items():
-        result = await session.execute(
-            select(Setting).where(Setting.key == key)
-        )
-        setting = result.scalar_one_or_none()
-
-        if setting:
-            setting.value = value
-        else:
-            setting = Setting(key=key, value=value)
-            session.add(setting)
-
-    await session.commit()
-
-    # Update runtime config from app.config.settings (the .env-backed singleton)
-    if llm_provider == "openrouter":
-        app_settings.llm_api_base = openrouter_api_base or "https://openrouter.ai/api/v1"
-        app_settings.llm_api_key = openrouter_api_key or app_settings.llm_api_key
-        app_settings.llm_default_model = openrouter_default_model or app_settings.llm_default_model
-    else:
-        app_settings.llm_api_base = llm_api_base or app_settings.llm_api_base
-        app_settings.llm_api_key = llm_api_key or app_settings.llm_api_key
-        app_settings.llm_default_model = llm_default_model or app_settings.llm_default_model
-
-    app_settings.ghost_admin_url = ghost_admin_url or app_settings.ghost_admin_url
-    app_settings.ghost_admin_api_key = (
-        ghost_admin_api_key or app_settings.ghost_admin_api_key
-    )
-    app_settings.log_level = log_level or app_settings.log_level
+    await RuntimeConfig.save_settings(session, form_values)
 
     return templates.TemplateResponse(
         request,
@@ -160,24 +92,15 @@ async def test_ghost_connection(
     request: Request,
     session: AsyncSession = Depends(get_session),
 ):
-    """Test the Ghost Admin API connection."""
+    """Test the Ghost Admin API connection using RuntimeConfig."""
     from app.services.ghost_client import GhostClient
 
-    # Get current settings
-    result = await session.execute(
-        select(Setting).where(Setting.key == "ghost_admin_url")
+    config = await RuntimeConfig.load(session)
+
+    ghost = GhostClient(
+        admin_url=config.ghost_admin_url,
+        admin_api_key=config.ghost_admin_api_key,
     )
-    url_setting = result.scalar_one_or_none()
-
-    result = await session.execute(
-        select(Setting).where(Setting.key == "ghost_admin_api_key")
-    )
-    key_setting = result.scalar_one_or_none()
-
-    admin_url = url_setting.value if url_setting else ""
-    admin_key = key_setting.value if key_setting else ""
-
-    ghost = GhostClient(admin_url=admin_url, admin_api_key=admin_key)
     success = await ghost.test_connection()
 
     return JSONResponse(
@@ -195,51 +118,21 @@ async def test_llm_connection(
     request: Request,
     session: AsyncSession = Depends(get_session),
 ):
-    """Test the LLM API connection with a simple request.
-    Uses the active provider (openai / openrouter) from settings.
-    """
+    """Test the LLM API connection using RuntimeConfig (active provider)."""
     from app.services.llm_client import LlmClient
 
-    # Determine active provider
-    provider_result = await session.execute(
-        select(Setting).where(Setting.key == "llm_provider")
+    config = await RuntimeConfig.load(session)
+    llm_cfg = config.resolve_llm_config()
+
+    llm = LlmClient(
+        base_url=llm_cfg["base_url"],
+        api_key=llm_cfg["api_key"],
+        default_model=llm_cfg["model"],
     )
-    provider_setting = provider_result.scalar_one_or_none()
-    provider = provider_setting.value if provider_setting else "openai"
-
-    if provider == "openrouter":
-        base_row = (await session.execute(
-            select(Setting).where(Setting.key == "openrouter_api_base")
-        )).scalar_one_or_none()
-        key_row = (await session.execute(
-            select(Setting).where(Setting.key == "openrouter_api_key")
-        )).scalar_one_or_none()
-        model_row = (await session.execute(
-            select(Setting).where(Setting.key == "openrouter_default_model")
-        )).scalar_one_or_none()
-        # Fall back to runtime config if DB is empty (fresh .env)
-        api_base = base_row.value if base_row else app_settings.llm_api_base
-        api_key = key_row.value if key_row else app_settings.llm_api_key
-        model = model_row.value if model_row else app_settings.llm_default_model
-    else:
-        base_row = (await session.execute(
-            select(Setting).where(Setting.key == "llm_api_base")
-        )).scalar_one_or_none()
-        key_row = (await session.execute(
-            select(Setting).where(Setting.key == "llm_api_key")
-        )).scalar_one_or_none()
-        model_row = (await session.execute(
-            select(Setting).where(Setting.key == "llm_default_model")
-        )).scalar_one_or_none()
-        api_base = base_row.value if base_row else app_settings.llm_api_base
-        api_key = key_row.value if key_row else app_settings.llm_api_key
-        model = model_row.value if model_row else app_settings.llm_default_model
-
-    llm = LlmClient(base_url=api_base, api_key=api_key, default_model=model)
     try:
-        response = await llm.generate_chat(
+        await llm.generate_chat(
             messages=[{"role": "user", "content": "Reply with just: OK"}],
-            model=model,
+            model=llm_cfg["model"],
             max_tokens=10,
         )
         return JSONResponse(
@@ -254,23 +147,20 @@ async def test_llm_connection(
 @router.get("/openrouter-models")
 async def list_openrouter_models(request: Request):
     """Fetch available models from OpenRouter API."""
-    # Get the stored API key for OpenRouter
     from app.database import async_session_factory
+    from app.utils.encryption import decrypt_value
 
     async with async_session_factory() as session:
-        result = await session.execute(
+        key_row = (await session.execute(
             select(Setting).where(Setting.key == "openrouter_api_key")
-        )
-        key_setting = result.scalar_one_or_none()
-        result = await session.execute(
+        )).scalar_one_or_none()
+        base_row = (await session.execute(
             select(Setting).where(Setting.key == "openrouter_api_base")
-        )
-        base_setting = result.scalar_one_or_none()
+        )).scalar_one_or_none()
 
-    api_key = key_setting.value if key_setting else ""
-    api_base = (base_setting.value if base_setting else "https://openrouter.ai/api/v1").rstrip("/")
+    api_key = decrypt_value(key_row.value) if key_row and key_row.value else ""
+    api_base = (base_row.value if base_row else "https://openrouter.ai/api/v1").rstrip("/")
 
-    # If no key saved yet, fall back to the request's form data or env
     if not api_key:
         return JSONResponse(
             {"success": False, "error": "OpenRouter API key not configured. Save your key first."}
@@ -285,13 +175,11 @@ async def list_openrouter_models(request: Request):
                     {"success": False, "error": f"OpenRouter returned {resp.status_code}"}
                 )
             data = resp.json()
-            # OpenRouter returns { data: [ { id, name, ... } ] }
             models = [
                 {"id": m["id"], "name": m.get("name", m["id"])}
                 for m in data.get("data", [])
                 if m.get("id")
             ]
-            # Sort alphabetically by id
             models.sort(key=lambda x: x["id"].lower())
             return JSONResponse({"success": True, "models": models})
     except Exception as exc:

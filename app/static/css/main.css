@@ -247,7 +247,7 @@ ul, ol {
 }
 
 .sub-nav-pill:hover {
-  background-color: #e8e8ec;
+  background-color: var(--color-surface-elevated);
 }
 
 .sub-nav-pill.active {
@@ -1107,6 +1107,32 @@ ul, ol {
 
 .btn-link:hover {
   opacity: 0.8;
+}
+
+/* ── Loading Spinner ──────────────────────────────────────────────────── */
+.spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.btn-loading {
+  pointer-events: none;
+  opacity: 0.7;
+  position: relative;
+}
+
+.btn-loading .spinner {
+  margin-right: 6px;
 }
 
 /* ── Responsive ────────────────────────────────────────────────────────── */

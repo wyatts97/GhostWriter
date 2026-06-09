@@ -39,10 +39,17 @@
     </div>
 
     {% if articles %}
+    <form id="bulk-form" method="post">
+    <div class="flex gap-sm mb-md items-center">
+      <span class="body-sm" style="color: var(--color-on-dark-mute);" id="selected-count">0 selected</span>
+      <button type="button" class="btn btn-pill-sm" onclick="bulkAction('publish')" style="background-color: var(--color-primary); color: white;">Publish Selected</button>
+      <button type="button" class="btn btn-pill-sm" onclick="bulkAction('delete')" style="color: var(--color-accent-danger);">Delete Selected</button>
+    </div>
     <div class="card-feature-dark" style="padding: 0; overflow: hidden;">
       <table class="data-table" style="color: var(--color-on-dark);">
         <thead>
           <tr>
+            <th style="color: var(--color-on-dark-mute); width: 40px;"><input type="checkbox" id="select-all" onchange="toggleAllCheckboxes(this)"></th>
             <th style="color: var(--color-on-dark-mute);">Status</th>
             <th style="color: var(--color-on-dark-mute);">Title</th>
             <th style="color: var(--color-on-dark-mute);">Prompt</th>
@@ -54,6 +61,7 @@
           {% for item in articles %}
           {% set a = item.article %}
           <tr>
+            <td><input type="checkbox" name="article_ids" value="{{ a.id }}" onchange="updateSelectedCount()"></td>
             <td>
               {% if a.status == 'published' %}
               {{ badge.badge_success("Published") }}
@@ -92,6 +100,7 @@
         </tbody>
       </table>
     </div>
+    </form>
     {% else %}
     <div class="card-feature-dark">
       <div class="empty-state">
@@ -111,4 +120,28 @@
     {% endif %}
   </div>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleAllCheckboxes(master) {
+  document.querySelectorAll('input[name="article_ids"]').forEach(function(cb) { cb.checked = master.checked; });
+  updateSelectedCount();
+}
+function updateSelectedCount() {
+  var count = document.querySelectorAll('input[name="article_ids"]:checked').length;
+  var el = document.getElementById('selected-count');
+  if (el) el.textContent = count + ' selected';
+}
+function bulkAction(action) {
+  var checked = document.querySelectorAll('input[name="article_ids"]:checked');
+  if (checked.length === 0) return;
+  if (action === 'delete' && !confirm('Delete ' + checked.length + ' selected articles?')) return;
+  if (action === 'publish' && !confirm('Publish ' + checked.length + ' selected articles to Ghost?')) return;
+
+  var form = document.getElementById('bulk-form');
+  form.action = '/articles/bulk/' + action;
+  form.submit();
+}
+</script>
 {% endblock %}

@@ -112,6 +112,23 @@
             }
         }
     </script>
+
+    <script>
+    // ── Auto-loading state on form submit ──
+    document.addEventListener('submit', function(e) {
+      const form = e.target;
+      const btns = form.querySelectorAll('button[type="submit"]');
+      btns.forEach(function(btn) {
+        btn.disabled = true;
+        btn.classList.add('btn-loading');
+        const spinner = document.createElement('span');
+        spinner.className = 'spinner';
+        spinner.setAttribute('aria-hidden', 'true');
+        btn.insertBefore(spinner, btn.firstChild);
+      });
+    });
+    </script>
+
     {% block scripts %}{% endblock %}
 </body>
 </html>

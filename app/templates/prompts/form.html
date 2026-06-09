@@ -23,6 +23,15 @@
           <textarea id="content" name="content" rows="12" class="textarea-input mono"
                     placeholder="You are a professional technology journalist...">{{ prompt.content if prompt else '' }}</textarea>
           <p class="form-help">The system prompt defines the LLM's behavior, tone, and writing style. Be specific about structure and requirements.</p>
+          <div class="form-help mt-sm" style="border-top: 1px solid var(--color-hairline-light); padding-top: var(--spacing-sm);">
+            <strong>Available template variables:</strong>
+            <div style="display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin-top: 6px; font-size: 13px;">
+              {% for var, info in prompt_variables.items() %}
+              <code style="color: var(--color-accent-light-green);">{{ var }}</code>
+              <span style="color: var(--color-stone);">{{ info.description }}</span>
+              {% endfor %}
+            </div>
+          </div>
         </div>
 
         <div class="form-row">

@@ -39,16 +39,19 @@ async def fetch_feed(feed_id: int, session: AsyncSession) -> int:
         raw_xml = await _fetch_url(feed.url)
     except Exception as exc:
         logger.error("rss_feed_fetch_error", feed_name=feed.name, url=feed.url, error=str(exc))
+        feed.last_error = str(exc)[:500]
+        feed.last_error_at = datetime.now(timezone.utc)
+        await session.commit()
         return 0
 
     parsed = feedparser.parse(raw_xml)
 
     if parsed.bozo and not parsed.entries:
-        logger.error(
-            "rss_feed_parse_error",
-            feed_name=feed.name,
-            error=str(parsed.bozo_exception),
-        )
+        error_msg = str(parsed.bozo_exception)
+        logger.error("rss_feed_parse_error", feed_name=feed.name, error=error_msg)
+        feed.last_error = error_msg[:500]
+        feed.last_error_at = datetime.now(timezone.utc)
+        await session.commit()
         return 0
 
     new_count = 0
@@ -85,8 +88,10 @@ async def fetch_feed(feed_id: int, session: AsyncSession) -> int:
         session.add(feed_entry)
         new_count += 1
 
-    # Update last_fetched_at
+    # Update last_fetched_at and clear any previous errors
     feed.last_fetched_at = datetime.now(timezone.utc)
+    feed.last_error = None
+    feed.last_error_at = None
     await session.commit()
 
     logger.info(

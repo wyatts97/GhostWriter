@@ -2,8 +2,8 @@
 
 import json
 
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi import APIRouter, Depends, Form, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -248,4 +248,171 @@ async def delete_article(
         await session.delete(article)
         await session.commit()
 
+    return RedirectResponse(url="/articles", status_code=303)
+
+
+# ── Preview ──────────────────────────────────────────────────────────────────
+
+
+@router.get("/{article_id}/preview")
+async def preview_article(
+    article_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    """Return article content rendered as HTML for preview."""
+    import markdown as md_lib
+
+    result = await session.execute(
+        select(GeneratedArticle).where(GeneratedArticle.id == article_id)
+    )
+    article = result.scalar_one_or_none()
+    if not article:
+        return JSONResponse({"success": False, "error": "Not found"})
+
+    html = md_lib.markdown(
+        article.content,
+        extensions=["fenced_code", "tables", "codehilite"],
+    )
+    return HTMLResponse(html)
+
+
+# ── Export ────────────────────────────────────────────────────────────────────
+
+
+@router.get("/{article_id}/export/markdown")
+async def export_article_markdown(
+    article_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    """Export article as Markdown file."""
+    result = await session.execute(
+        select(GeneratedArticle).where(GeneratedArticle.id == article_id)
+    )
+    article = result.scalar_one_or_none()
+    if not article:
+        return RedirectResponse(url="/articles", status_code=303)
+
+    content = f"# {article.title}\n\n{article.content}"
+    filename = f"{article.title.lower().replace(' ', '-')[:50].strip('-')}.md"
+
+    return Response(
+        content=content,
+        media_type="text/markdown",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/{article_id}/export/json")
+async def export_article_json(
+    article_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    """Export article as JSON file."""
+    import json as json_lib
+
+    result = await session.execute(
+        select(GeneratedArticle).where(GeneratedArticle.id == article_id)
+    )
+    article = result.scalar_one_or_none()
+    if not article:
+        return RedirectResponse(url="/articles", status_code=303)
+
+    data = {
+        "id": article.id,
+        "title": article.title,
+        "content": article.content,
+        "excerpt": article.excerpt,
+        "tags": json_lib.loads(article.tags) if article.tags else [],
+        "status": article.status,
+        "seo_title": article.seo_title,
+        "seo_description": article.seo_description,
+        "created_at": article.created_at.isoformat() if article.created_at else None,
+    }
+
+    filename = f"{article.title.lower().replace(' ', '-')[:50].strip('-')}.json"
+
+    return Response(
+        content=json.dumps(data, indent=2, default=str),
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ── Bulk Operations ──────────────────────────────────────────────────────────
+
+
+@router.post("/bulk/delete")
+async def bulk_delete_articles(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    """Delete multiple articles at once."""
+    form = await request.form()
+    article_ids = form.getlist("article_ids")
+    if article_ids:
+        ids = [int(x) for x in article_ids]
+        result = await session.execute(
+            select(GeneratedArticle).where(GeneratedArticle.id.in_(ids))
+        )
+        for article in result.scalars().all():
+            await session.delete(article)
+        await session.commit()
+    return RedirectResponse(url="/articles", status_code=303)
+
+
+@router.post("/bulk/publish")
+async def bulk_publish_articles(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    """Publish multiple draft articles to Ghost."""
+    from app.services.ghost_client import GhostClient
+    from app.services.runtime_config import RuntimeConfig
+    import markdown as md_lib
+
+    form = await request.form()
+    article_ids = form.getlist("article_ids")
+    if not article_ids:
+        return RedirectResponse(url="/articles", status_code=303)
+
+    ids = [int(x) for x in article_ids]
+    result = await session.execute(
+        select(GeneratedArticle).where(GeneratedArticle.id.in_(ids))
+    )
+    articles = result.scalars().all()
+
+    runtime = await RuntimeConfig.load(session)
+    ghost = GhostClient(
+        admin_url=runtime.ghost_admin_url,
+        admin_api_key=runtime.ghost_admin_api_key,
+    )
+
+    for article in articles:
+        if article.status not in ("draft", "draft_sent"):
+            continue
+        try:
+            content_html = md_lib.markdown(
+                article.content, extensions=["fenced_code", "tables"]
+            )
+            tags = []
+            if article.tags:
+                try:
+                    tags = json.loads(article.tags)
+                except (json.JSONDecodeError, TypeError):
+                    tags = [article.tags] if article.tags else []
+
+            ghost_post = await ghost.create_post(
+                title=article.title,
+                content_html=content_html,
+                status="published",
+                excerpt=article.excerpt,
+                tags=tags if isinstance(tags, list) else [tags],
+            )
+            article.ghost_post_id = ghost_post.get("id")
+            article.ghost_url = ghost_post.get("url")
+            article.status = "published"
+        except Exception as exc:
+            article.error_message = str(exc)
+
+    await session.commit()
     return RedirectResponse(url="/articles", status_code=303)

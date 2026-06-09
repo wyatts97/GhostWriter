@@ -67,8 +67,17 @@ async def generate_article(
     # ── 3. Build context digest ───────────────────────────────────────────
     context_digest = _build_context_digest(entries)
 
-    # ── 4. Assemble messages ──────────────────────────────────────────────
-    system_prompt = prompt.content
+    # ── 4. Resolve template variables in prompt ───────────────────────────
+    from app.utils.prompt_variables import resolve_prompt_variables
+
+    resolved_content = await resolve_prompt_variables(
+        prompt.content,
+        feed_ids=feed_ids,
+        session=session,
+    )
+
+    # ── 5. Assemble messages ──────────────────────────────────────────────
+    system_prompt = resolved_content
     if seo_instructions := seo_utils.build_seo_prompt_instructions():
         system_prompt = f"{system_prompt}\n\n{seo_instructions}"
 
@@ -82,7 +91,7 @@ async def generate_article(
         },
     ]
 
-    # ── 5. Call LLM ───────────────────────────────────────────────────────
+    # ── 6. Call LLM ───────────────────────────────────────────────────────
     if not llm_client:
         # Load from runtime config (DB settings + .env fallback)
         from app.services.runtime_config import RuntimeConfig
@@ -120,7 +129,7 @@ async def generate_article(
         await session.commit()
         return article
 
-    # ── 6. Parse and validate ─────────────────────────────────────────────
+    # ── 7. Parse and validate ─────────────────────────────────────────────
     title = llm_response.get("title", "Untitled Article")
     excerpt = llm_response.get("excerpt", "")
     content = llm_response.get("content", "")
@@ -148,7 +157,7 @@ async def generate_article(
         llm_response.get("twitter_description", excerpt), 160
     )
 
-    # ── 7. Save to database ───────────────────────────────────────────────
+    # ── 8. Save to database ───────────────────────────────────────────────
     article = GeneratedArticle(
         prompt_id=prompt_id,
         schedule_id=schedule_id,
@@ -169,7 +178,7 @@ async def generate_article(
     await session.commit()
     await session.refresh(article)
 
-    # ── 8. Send to Ghost ──────────────────────────────────────────────────
+    # ── 9. Send to Ghost ──────────────────────────────────────────────────
     if ghost_client and ghost_client.admin_url and ghost_client.admin_api_key:
         try:
             # Convert markdown to HTML

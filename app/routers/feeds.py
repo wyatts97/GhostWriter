@@ -105,6 +105,18 @@ async def toggle_feed(
     return RedirectResponse(url="/feeds", status_code=303)
 
 
+@router.post("/{feed_id}/fetch")
+async def fetch_single_feed(
+    feed_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    """Manually trigger a feed fetch."""
+    from app.services.rss_fetcher import fetch_feed
+
+    await fetch_feed(feed_id, session)
+    return RedirectResponse(url="/feeds", status_code=303)
+
+
 @router.get("/{feed_id}/test")
 async def test_feed(
     feed_id: int,

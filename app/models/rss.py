@@ -18,6 +18,8 @@ class RSSFeed(TimestampMixin, Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     fetch_interval_minutes: Mapped[int] = mapped_column(Integer, default=60)
     last_fetched_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    last_error_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     entries: Mapped[list["FeedEntry"]] = relationship("FeedEntry", back_populates="feed", cascade="all, delete-orphan")
 

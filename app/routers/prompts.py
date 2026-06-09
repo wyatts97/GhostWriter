@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_session
 from app.main import templates
 from app.models.prompts import Prompt
+from app.utils.prompt_variables import VARIABLE_DEFINITIONS
 
 router = APIRouter(tags=["prompts"])
 
@@ -36,6 +37,7 @@ async def new_prompt_form(request: Request):
             "prompt": None,
             "action": "create",
             "active_page": "prompts",
+            "prompt_variables": VARIABLE_DEFINITIONS,
         },
     )
 
@@ -84,6 +86,7 @@ async def edit_prompt_form(
             "prompt": prompt,
             "action": "edit",
             "active_page": "prompts",
+            "prompt_variables": VARIABLE_DEFINITIONS,
         },
     )
 

@@ -70,7 +70,7 @@
             help="Default model to use for article generation. Can be overridden per prompt.") }}
 
           <div class="mt-md">
-            <button type="button" class="btn btn-soft" onclick="testLlmConnection()">Test LLM Connection</button>
+            <button type="button" class="btn btn-soft" onclick="testLlmConnection(this)">Test LLM Connection</button>
             <span id="llm-test-result" class="body-sm text-muted ml-md"></span>
           </div>
         </div>
@@ -114,7 +114,7 @@
           </div>
 
           <div class="mt-md">
-            <button type="button" class="btn btn-soft" onclick="testLlmConnection()">Test LLM Connection</button>
+            <button type="button" class="btn btn-soft" onclick="testLlmConnection(this)">Test LLM Connection</button>
             <span id="llm-test-result-or" class="body-sm text-muted ml-md"></span>
           </div>
         </div>
@@ -136,8 +136,8 @@
           help="Create a Custom Integration in Ghost Admin to get this key.") }}
 
         <div class="mt-md">
-          <button type="button" class="btn btn-soft" onclick="testGhostConnection()">Test Ghost Connection</button>
-          <span id="ghost-test-result" class="body-sm text-muted ml-md"></span>
+            <button type="button" class="btn btn-soft" onclick="testGhostConnection(this)">Test Ghost Connection</button>
+            <span id="ghost-test-result" class="body-sm text-muted ml-md"></span>
         </div>
       </div>
 
@@ -278,37 +278,41 @@ document.addEventListener('DOMContentLoaded', function() {
 {% endif %}
 
 // ── Test LLM Connection ────────────────────────────────────────────────────
-async function testLlmConnection() {
+async function testLlmConnection(btn) {
   const el = document.getElementById('llm-test-result');
   const elOr = document.getElementById('llm-test-result-or');
-  el.textContent = 'Testing...';
-  el.style.color = 'var(--color-stone)';
-  if (elOr) { elOr.textContent = 'Testing...'; elOr.style.color = 'var(--color-stone)'; }
+  const restore = function(msg, color) {
+    btn.disabled = false;
+    btn.innerHTML = 'Test LLM Connection';
+    if (el) { el.textContent = msg; el.style.color = color; }
+    if (elOr) { elOr.textContent = msg; elOr.style.color = color; }
+  };
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Testing...';
   try {
     const res = await fetch('/settings/test-llm', { method: 'POST' });
     const data = await res.json();
-    el.textContent = data.message;
-    el.style.color = data.success ? 'var(--color-accent-light-green)' : 'var(--color-accent-danger)';
-    if (elOr) { elOr.textContent = data.message; elOr.style.color = el.style.color; }
+    restore(data.message, data.success ? 'var(--color-accent-light-green)' : 'var(--color-accent-danger)');
   } catch(e) {
-    el.textContent = 'Connection failed';
-    el.style.color = 'var(--color-accent-danger)';
-    if (elOr) { elOr.textContent = 'Connection failed'; elOr.style.color = 'var(--color-accent-danger)'; }
+    restore('Connection failed', 'var(--color-accent-danger)');
   }
 }
 
-async function testGhostConnection() {
+async function testGhostConnection(btn) {
   const el = document.getElementById('ghost-test-result');
-  el.textContent = 'Testing...';
-  el.style.color = 'var(--color-stone)';
+  const restore = function(msg, color) {
+    btn.disabled = false;
+    btn.innerHTML = 'Test Ghost Connection';
+    if (el) { el.textContent = msg; el.style.color = color; }
+  };
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Testing...';
   try {
     const res = await fetch('/settings/test-ghost', { method: 'POST' });
     const data = await res.json();
-    el.textContent = data.message;
-    el.style.color = data.success ? 'var(--color-accent-light-green)' : 'var(--color-accent-danger)';
+    restore(data.message, data.success ? 'var(--color-accent-light-green)' : 'var(--color-accent-danger)');
   } catch(e) {
-    el.textContent = 'Connection failed';
-    el.style.color = 'var(--color-accent-danger)';
+    restore('Connection failed', 'var(--color-accent-danger)');
   }
 }
 </script>

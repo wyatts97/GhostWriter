@@ -81,9 +81,18 @@
 
     <!-- Content Preview -->
     <div class="card-feature-light mb-xl">
-      <h2 class="heading-sm mb-sm">Content</h2>
-      <div class="body-md" style="white-space: pre-wrap; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; line-height: 1.6; max-height: 600px; overflow-y: auto; background: var(--color-surface-soft); padding: var(--spacing-lg); border-radius: var(--radius-md);">
+      <div class="flex justify-between items-center mb-sm">
+        <h2 class="heading-sm">Content</h2>
+        <div class="flex gap-sm">
+          <button type="button" class="btn btn-pill-sm" id="preview-toggle" onclick="togglePreview()">Preview</button>
+          {{ btn.btn_pill_sm("Export Markdown", href="/articles/" ~ article.id ~ "/export/markdown") }}
+          {{ btn.btn_pill_sm("Export JSON", href="/articles/" ~ article.id ~ "/export/json") }}
+        </div>
+      </div>
+      <div id="article-content-raw" class="body-md" style="white-space: pre-wrap; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; line-height: 1.6; max-height: 600px; overflow-y: auto; background: var(--color-surface-soft); padding: var(--spacing-lg); border-radius: var(--radius-md);">
         {{- article.content -}}
+      </div>
+      <div id="article-content-rendered" class="body-md" style="display: none; line-height: 1.8; max-height: 600px; overflow-y: auto; padding: var(--spacing-lg); border-radius: var(--radius-md);">
       </div>
     </div>
 
@@ -140,4 +149,39 @@
     </div>
   </div>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let previewActive = false;
+async function togglePreview() {
+  const btn = document.getElementById('preview-toggle');
+  const raw = document.getElementById('article-content-raw');
+  const rendered = document.getElementById('article-content-rendered');
+
+  if (!previewActive) {
+    if (!rendered.innerHTML) {
+      btn.textContent = 'Loading...';
+      btn.disabled = true;
+      try {
+        const res = await fetch('/articles/{{ article.id }}/preview');
+        const html = await res.text();
+        rendered.innerHTML = html;
+      } catch(e) {
+        rendered.innerHTML = '<p style="color: var(--color-accent-danger);">Failed to render preview.</p>';
+      }
+      btn.disabled = false;
+    }
+    raw.style.display = 'none';
+    rendered.style.display = '';
+    btn.textContent = 'Raw';
+    previewActive = true;
+  } else {
+    raw.style.display = '';
+    rendered.style.display = 'none';
+    btn.textContent = 'Preview';
+    previewActive = false;
+  }
+}
+</script>
 {% endblock %}

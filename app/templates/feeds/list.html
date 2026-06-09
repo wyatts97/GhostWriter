@@ -24,7 +24,7 @@
             <th>URL</th>
             <th>Topic</th>
             <th>Interval</th>
-            <th>Status</th>
+            <th>Health</th>
             <th>Last Fetched</th>
             <th class="text-right">Actions</th>
           </tr>
@@ -39,17 +39,25 @@
             <td>{{ feed.topic or '—' }}</td>
             <td>Every {{ feed.fetch_interval_minutes }}m</td>
             <td>
-              {% if feed.active %}
-              {{ badge.badge_success("Active") }}
+              {% if feed.last_error %}
+              <span title="{{ feed.last_error[:200] }}">{{ badge.badge_danger("Error") }}</span>
+              {% elif feed.active %}
+              {{ badge.badge_success("Healthy") }}
               {% else %}
               {{ badge.badge_tag("Paused") }}
               {% endif %}
             </td>
             <td class="body-sm text-muted">
               {{ feed.last_fetched_at.strftime('%Y-%m-%d %H:%M') if feed.last_fetched_at else 'Never' }}
+              {% if feed.last_error_at %}
+              <br><span style="color: var(--color-accent-danger); font-size: 12px;">Error: {{ feed.last_error_at.strftime('%Y-%m-%d %H:%M') }}</span>
+              {% endif %}
             </td>
             <td>
               <div class="actions">
+                <form method="post" action="/feeds/{{ feed.id }}/fetch" style="display:inline;">
+                  <button type="submit" class="btn btn-pill-sm">Fetch Now</button>
+                </form>
                 <form method="post" action="/feeds/{{ feed.id }}/toggle" style="display:inline;">
                   <button type="submit" class="btn btn-pill-sm">
                     {% if feed.active %}Pause{% else %}Activate{% endif %}

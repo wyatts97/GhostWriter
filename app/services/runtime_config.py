@@ -84,6 +84,24 @@ class RuntimeConfig:
         config._raw = raw
         return config
 
+    def resolve_llm_config(self) -> dict[str, str]:
+        """Return the active LLM provider's connection config.
+
+        Returns ``{"base_url": …, "api_key": …, "model": …}`` for whichever
+        provider is selected (openai or openrouter).
+        """
+        if self.llm_provider == "openrouter":
+            return {
+                "base_url": self.openrouter_api_base,
+                "api_key": self.openrouter_api_key,
+                "model": self.openrouter_default_model,
+            }
+        return {
+            "base_url": self.llm_api_base,
+            "api_key": self.llm_api_key,
+            "model": self.llm_default_model,
+        }
+
     @classmethod
     async def save_settings(
         cls, session: AsyncSession, form_values: dict[str, str]

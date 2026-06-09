@@ -3,8 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}GhostWriter{% endblock %}</title>
+    <title>{% block title %}GhostWriter{% endblock %title %}</title>
     <link rel="stylesheet" href="{{ url_for('static', path='css/main.css') }}">
+    <script>
+      // Blocking — runs before first paint to prevent dark-mode flash
+      (function() {
+        var t = localStorage.getItem('ghostwriter-theme');
+        if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+      })();
+    </script>
 </head>
 <body>
 
@@ -86,10 +93,9 @@
                 }, 4000);
             });
 
-            // ── Init theme from localStorage ──
+            // ── Sync icon with the theme set in <head> ──
             const saved = localStorage.getItem('ghostwriter-theme');
             if (saved === 'dark') {
-                document.documentElement.setAttribute('data-theme', 'dark');
                 document.getElementById('theme-icon-sun').style.display = '';
                 document.getElementById('theme-icon-moon').style.display = 'none';
             }

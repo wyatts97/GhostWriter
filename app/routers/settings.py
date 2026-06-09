@@ -24,9 +24,11 @@ async def settings_page(
     config = await RuntimeConfig.load(session)
 
     # Convert dataclass to dict for the template (skip _raw)
+    from app.services.runtime_config import SETTING_KEYS
+
     settings_dict = {
         key: getattr(config, key, "")
-        for key in RuntimeConfig.setting_keys()
+        for key in SETTING_KEYS
     }
 
     return templates.TemplateResponse(

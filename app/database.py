@@ -1,9 +1,14 @@
 from collections.abc import AsyncGenerator
+from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
 from app.config import settings
+
+# Ensure the database directory exists (handles missing volume dirs on fresh clones)
+_db_path = Path(settings.database_url.replace("sqlite+aiosqlite:///", ""))
+_db_path.parent.mkdir(parents=True, exist_ok=True)
 
 engine = create_async_engine(settings.database_url, echo=False, connect_args={"check_same_thread": False})
 

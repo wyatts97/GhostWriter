@@ -92,3 +92,37 @@
   --radius-xl: 28px;
   --radius-full: 9999px;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Dark Mode — swapped via [data-theme="dark"] on <html>
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-theme="dark"] {
+  --color-canvas-light: #000000;
+  --color-canvas-dark: #000000;
+  --color-surface-soft: #1a1a1e;
+  --color-surface-card: #16181a;
+  --color-surface-deep: #0a0a0a;
+  --color-surface-elevated: #16181a;
+
+  --color-hairline-light: rgba(255, 255, 255, 0.08);
+  --color-hairline-dark: rgba(255, 255, 255, 0.12);
+  --color-hairline-strong: rgba(255, 255, 255, 0.16);
+
+  --color-ink: #e8e8ed;
+  --color-body: #d0d0d8;
+  --color-charcoal: #b0b0b8;
+  --color-mute: #909098;
+  --color-ash: #7a7a80;
+  --color-stone: #6a6a70;
+  --color-faint: #4a4a50;
+  --color-on-dark: #ffffff;
+  --color-on-dark-mute: rgba(255, 255, 255, 0.72);
+
+  --color-accent-light-green: #4caf50;
+  --color-accent-green-text: #81c784;
+}
+
+/* ── Dark mode image / icon tint ────────────────────────────────────────── */
+[data-theme="dark"] img {
+  opacity: 0.9;
+}

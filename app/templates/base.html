@@ -38,6 +38,17 @@
                 <span class="nav-status-dot"></span>
                 <span>Online</span>
             </div>
+            <!-- Theme Toggle -->
+            <button class="btn-icon" id="theme-toggle" title="Toggle dark/light mode" onclick="toggleTheme()">
+                <svg id="theme-icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+                    <circle cx="12" cy="12" r="5"></circle>
+                    <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path>
+                </svg>
+                <svg id="theme-icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                </svg>
+            </button>
+            <!-- Settings -->
             <a href="/settings" class="btn-icon" title="Settings">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="3"></circle>
@@ -60,7 +71,7 @@
     </main>
 
     <script>
-        // Auto-dismiss flash messages
+        // ── Auto-dismiss flash messages ──
         document.addEventListener('DOMContentLoaded', function() {
             const flashes = document.querySelectorAll('.flash-message');
             flashes.forEach(function(msg) {
@@ -70,7 +81,32 @@
                     setTimeout(function() { msg.remove(); }, 300);
                 }, 4000);
             });
+
+            // ── Init theme from localStorage ──
+            const saved = localStorage.getItem('ghostwriter-theme');
+            if (saved === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                document.getElementById('theme-icon-sun').style.display = '';
+                document.getElementById('theme-icon-moon').style.display = 'none';
+            }
         });
+
+        // ── Theme toggle ──
+        function toggleTheme() {
+            const html = document.documentElement;
+            const isDark = html.getAttribute('data-theme') === 'dark';
+            if (isDark) {
+                html.removeAttribute('data-theme');
+                localStorage.setItem('ghostwriter-theme', 'light');
+                document.getElementById('theme-icon-sun').style.display = 'none';
+                document.getElementById('theme-icon-moon').style.display = '';
+            } else {
+                html.setAttribute('data-theme', 'dark');
+                localStorage.setItem('ghostwriter-theme', 'dark');
+                document.getElementById('theme-icon-sun').style.display = '';
+                document.getElementById('theme-icon-moon').style.display = 'none';
+            }
+        }
     </script>
     {% block scripts %}{% endblock %}
 </body>

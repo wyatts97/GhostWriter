@@ -27,25 +27,96 @@
       <div class="card-feature-light mb-xl">
         <h2 class="heading-md mb-lg">LLM Provider</h2>
 
-        {{ input.text_input("llm_api_base", "API Base URL",
-          value=settings.llm_api_base,
-          placeholder="https://api.openai.com/v1",
-          help="OpenAI-compatible API endpoint. Supports OpenAI, Claude, Deepseek, Gemini.") }}
+        <!-- Provider tabs -->
+        <div class="provider-tabs mb-lg">
+          <button type="button" class="provider-tab {% if settings.llm_provider == 'openai' or not settings.llm_provider %}active{% endif %}"
+                  data-provider="openai" onclick="switchProvider('openai')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+              <path d="M12 3v18"/>
+              <path d="M3 12h18"/>
+            </svg>
+            OpenAI
+          </button>
+          <button type="button" class="provider-tab {% if settings.llm_provider == 'openrouter' %}active{% endif %}"
+                  data-provider="openrouter" onclick="switchProvider('openrouter')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+              <path d="M2 17l10 5 10-5"/>
+              <path d="M2 12l10 5 10-5"/>
+            </svg>
+            OpenRouter
+          </button>
+        </div>
 
-        {{ input.text_input("llm_api_key", "API Key",
-          value=settings.llm_api_key,
-          type="password",
-          placeholder="sk-...",
-          help="Your API key. Stored encrypted at rest.") }}
+        <input type="hidden" id="llm_provider" name="llm_provider" value="{{ settings.llm_provider or 'openai' }}">
 
-        {{ input.text_input("llm_default_model", "Default Model",
-          value=settings.llm_default_model,
-          placeholder="gpt-4o",
-          help="Default model to use for article generation. Can be overridden per prompt.") }}
+        <!-- OpenAI tab content -->
+        <div class="provider-panel" id="panel-openai" {% if settings.llm_provider == 'openrouter' %}style="display:none"{% endif %}>
+          {{ input.text_input("llm_api_base", "API Base URL",
+            value=settings.llm_api_base,
+            placeholder="https://api.openai.com/v1",
+            help="OpenAI-compatible API endpoint. Supports OpenAI, Claude, Deepseek, Gemini.") }}
 
-        <div class="mt-md">
-          <button type="button" class="btn btn-soft" onclick="testLlmConnection()">Test LLM Connection</button>
-          <span id="llm-test-result" class="body-sm text-muted ml-md"></span>
+          {{ input.text_input("llm_api_key", "API Key",
+            value=settings.llm_api_key,
+            type="password",
+            placeholder="sk-...",
+            help="Your API key. Stored encrypted at rest.") }}
+
+          {{ input.text_input("llm_default_model", "Default Model",
+            value=settings.llm_default_model,
+            placeholder="gpt-4o",
+            help="Default model to use for article generation. Can be overridden per prompt.") }}
+
+          <div class="mt-md">
+            <button type="button" class="btn btn-soft" onclick="testLlmConnection()">Test LLM Connection</button>
+            <span id="llm-test-result" class="body-sm text-muted ml-md"></span>
+          </div>
+        </div>
+
+        <!-- OpenRouter tab content -->
+        <div class="provider-panel" id="panel-openrouter" {% if settings.llm_provider != 'openrouter' %}style="display:none"{% endif %}>
+          {{ input.text_input("openrouter_api_base", "OpenRouter API Base URL",
+            value=settings.openrouter_api_base,
+            placeholder="https://openrouter.ai/api/v1",
+            help="OpenRouter API endpoint.") }}
+
+          {{ input.text_input("openrouter_api_key", "OpenRouter API Key",
+            value=settings.openrouter_api_key,
+            type="password",
+            placeholder="sk-or-v1-...",
+            help="Your OpenRouter API key.") }}
+
+          <!-- Searchable model dropdown -->
+          <div class="form-group">
+            <label class="form-label" for="openrouter_model_search">Default Model</label>
+            <div class="model-select-wrap">
+              <input type="text" id="openrouter_model_search"
+                     class="text-input model-search-input"
+                     placeholder="Search and select a model..."
+                     value="{{ settings.openrouter_default_model or '' }}"
+                     oninput="filterModels(this.value)"
+                     onfocus="openModelDropdown()"
+                     autocomplete="off">
+              <input type="hidden" id="openrouter_default_model" name="openrouter_default_model"
+                     value="{{ settings.openrouter_default_model or '' }}">
+              <button type="button" class="model-select-toggle" onclick="toggleModelDropdown()" tabindex="-1">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
+              <div class="model-dropdown" id="model-dropdown">
+                <div class="model-dropdown-empty">Loading models…</div>
+              </div>
+            </div>
+            <p class="form-help">Model used for article generation via OpenRouter. <button type="button" class="btn-link" onclick="fetchOpenRouterModels()">Refresh model list</button></p>
+          </div>
+
+          <div class="mt-md">
+            <button type="button" class="btn btn-soft" onclick="testLlmConnection()">Test LLM Connection</button>
+            <span id="llm-test-result-or" class="body-sm text-muted ml-md"></span>
+          </div>
         </div>
       </div>
 
@@ -90,18 +161,139 @@
 </section>
 
 <script>
+// ── Provider tab switching ────────────────────────────────────────────────
+function switchProvider(provider) {
+  document.querySelectorAll('.provider-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.provider-tab[data-provider="${provider}"]`).classList.add('active');
+  document.getElementById('llm_provider').value = provider;
+  document.getElementById('panel-openai').style.display = provider === 'openai' ? '' : 'none';
+  document.getElementById('panel-openrouter').style.display = provider === 'openrouter' ? '' : 'none';
+
+  if (provider === 'openrouter') {
+    fetchOpenRouterModels();
+  }
+}
+
+// ── Model searchable dropdown ──────────────────────────────────────────────
+let allModels = [];
+let dropdownOpen = false;
+
+function fetchOpenRouterModels() {
+  const dropdown = document.getElementById('model-dropdown');
+  dropdown.innerHTML = '<div class="model-dropdown-empty">Loading models…</div>';
+
+  fetch('/settings/openrouter-models')
+    .then(r => r.json())
+    .then(data => {
+      if (!data.success) {
+        dropdown.innerHTML = `<div class="model-dropdown-empty">${data.error || 'Failed to load models'}</div>`;
+        return;
+      }
+      allModels = data.models;
+      const searchVal = document.getElementById('openrouter_model_search').value.toLowerCase();
+      renderModels(searchVal);
+    })
+    .catch(err => {
+      dropdown.innerHTML = `<div class="model-dropdown-empty">Error: ${err.message}</div>`;
+    });
+}
+
+function renderModels(filter) {
+  const dropdown = document.getElementById('model-dropdown');
+  const filtered = filter
+    ? allModels.filter(m => m.id.toLowerCase().includes(filter) || (m.name && m.name.toLowerCase().includes(filter)))
+    : allModels;
+
+  if (filtered.length === 0) {
+    dropdown.innerHTML = '<div class="model-dropdown-empty">No models found</div>';
+    return;
+  }
+
+  dropdown.innerHTML = filtered.map(m =>
+    `<div class="model-dropdown-item" data-id="${m.id}" onclick="selectModel('${m.id.replace(/'/g, "\\'")}')">
+       <span class="model-item-id">${m.id}</span>
+       ${m.name && m.name !== m.id ? `<span class="model-item-name">${m.name}</span>` : ''}
+     </div>`
+  ).join('');
+}
+
+function filterModels(value) {
+  renderModels(value.toLowerCase());
+  if (!dropdownOpen) openModelDropdown();
+}
+
+function selectModel(id) {
+  document.getElementById('openrouter_model_search').value = id;
+  document.getElementById('openrouter_default_model').value = id;
+  closeModelDropdown();
+}
+
+function toggleModelDropdown() {
+  if (dropdownOpen) closeModelDropdown();
+  else openModelDropdown();
+}
+
+function openModelDropdown() {
+  const dropdown = document.getElementById('model-dropdown');
+  dropdown.classList.add('open');
+  dropdownOpen = true;
+}
+
+function closeModelDropdown() {
+  const dropdown = document.getElementById('model-dropdown');
+  dropdown.classList.remove('open');
+  dropdownOpen = false;
+}
+
+// Close dropdown on outside click
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.model-select-wrap')) {
+    closeModelDropdown();
+  }
+});
+
+// Keyboard navigation for model dropdown
+document.getElementById('openrouter_model_search').addEventListener('keydown', function(e) {
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    const items = document.querySelectorAll('.model-dropdown-item');
+    if (items.length) items[0].focus();
+  }
+  if (e.key === 'Escape') closeModelDropdown();
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    // If dropdown is open and there's a visible item, select the first one
+    const visible = document.querySelector('.model-dropdown-item');
+    if (visible && dropdownOpen) {
+      selectModel(visible.dataset.id);
+    }
+  }
+});
+
+// ── Auto-fetch models when OpenRouter tab becomes visible ──────────────────
+{% if settings.llm_provider == 'openrouter' %}
+document.addEventListener('DOMContentLoaded', function() {
+  fetchOpenRouterModels();
+});
+{% endif %}
+
+// ── Test LLM Connection ────────────────────────────────────────────────────
 async function testLlmConnection() {
   const el = document.getElementById('llm-test-result');
+  const elOr = document.getElementById('llm-test-result-or');
   el.textContent = 'Testing...';
   el.style.color = 'var(--color-stone)';
+  if (elOr) { elOr.textContent = 'Testing...'; elOr.style.color = 'var(--color-stone)'; }
   try {
     const res = await fetch('/settings/test-llm', { method: 'POST' });
     const data = await res.json();
     el.textContent = data.message;
     el.style.color = data.success ? 'var(--color-accent-light-green)' : 'var(--color-accent-danger)';
+    if (elOr) { elOr.textContent = data.message; elOr.style.color = el.style.color; }
   } catch(e) {
     el.textContent = 'Connection failed';
     el.style.color = 'var(--color-accent-danger)';
+    if (elOr) { elOr.textContent = 'Connection failed'; elOr.style.color = 'var(--color-accent-danger)'; }
   }
 }
 

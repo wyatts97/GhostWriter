@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% import "components/button.html" as btn %}
+{% import "components/badge.html" as badge %}
+{% import "components/input.html" as input %}
+{% import "components/modal.html" as modal %}
+
+{% block title %}Schedules — GhostWriter{% endblock %}
+
+{% block content %}
+<section class="section-dark">
+  <div class="container">
+    <div class="page-header">
+      <h1>Schedules</h1>
+      <div class="page-header-actions">
+        {{ btn.btn_primary("Create Schedule", href="/schedules/new") }}
+      </div>
+    </div>
+
+    {% if schedules %}
+    <div class="grid-3">
+      {% for item in schedules %}
+      {% set s = item.schedule %}
+      <div class="{% if loop.index == 1 %}card-plan-featured{% else %}card-plan{% endif %}" style="display: flex; flex-direction: column;">
+        <div class="flex justify-between items-start mb-md">
+          <h3 class="heading-sm">{{ s.name }}</h3>
+          <div>
+            {% if s.publish_mode == 'publish' %}
+            {{ badge.badge_feature("Auto-Publish") }}
+            {% else %}
+            {{ badge.badge_tag("Draft") }}
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="body-sm mb-md" style="color: var(--color-on-dark-mute);">
+          {% set parts = s.cron_expression.split(' ') %}
+          {% if s.cron_expression == '0 */4 * * *' %}
+          Every 4 hours
+          {% elif s.cron_expression == '0 * * * *' %}
+          Every hour
+          {% elif s.cron_expression == '0 0 * * *' %}
+          Daily at midnight
+          {% elif s.cron_expression == '0 0,12 * * *' %}
+          Twice daily
+          {% elif s.cron_expression == '0 0 * * 1' %}
+          Weekly on Monday
+          {% else %}
+          {{ s.cron_expression }}
+          {% endif %}
+        </div>
+
+        <div class="body-sm mb-md" style="color: var(--color-on-dark-mute);">
+          Prompt: <strong>{{ item.prompt_name or '—' }}</strong>
+        </div>
+
+        <div class="body-sm mb-md" style="color: var(--color-on-dark-mute);">
+          Feeds: <strong>{{ item.feed_names|length }}</strong>
+          {% if item.feed_names %}
+          ({{ item.feed_names|join(', ') }})
+          {% endif %}
+        </div>
+
+        <div class="body-sm mb-md" style="color: var(--color-on-dark-mute);">
+          Max articles per run: <strong>{{ s.max_articles_per_run }}</strong>
+        </div>
+
+        <div class="flex items-center gap-md mb-md">
+          <form method="post" action="/schedules/{{ s.id }}/toggle" style="display:inline;">
+            {{ input.toggle("active", checked=s.active) }}
+          </form>
+          <span class="body-sm">{{ 'Active' if s.active else 'Inactive' }}</span>
+        </div>
+
+        <div style="margin-top: auto;" class="flex gap-sm">
+          <form method="post" action="/schedules/{{ s.id }}/run" style="display:inline;">
+            {{ btn.btn_pill_sm("Run Now", type="submit") }}
+          </form>
+          {{ btn.btn_pill_sm("Edit", href="/schedules/" ~ s.id ~ "/edit") }}
+          <form method="post" action="/schedules/{{ s.id }}/delete" style="display:inline;" onsubmit="return confirm('Delete this schedule?')">
+            <button type="submit" class="btn btn-pill-sm" style="color: var(--color-accent-danger);">Delete</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card-feature-dark">
+      <div class="empty-state">
+        <div class="empty-state-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--color-on-dark-mute)" stroke-width="1.5">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+        </div>
+        <div class="empty-state-title">No Schedules</div>
+        <div class="empty-state-text">Create schedules to automatically generate articles on a recurring basis. Each schedule links a prompt with RSS feed sources.</div>
+        <div class="mt-lg">
+          {{ btn.btn_primary("Create Your First Schedule", href="/schedules/new") }}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

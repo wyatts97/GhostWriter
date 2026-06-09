@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% import "components/button.html" as btn %}
+{% import "components/badge.html" as badge %}
+{% import "components/modal.html" as modal %}
+
+{% block title %}RSS Feeds — GhostWriter{% endblock %}
+
+{% block content %}
+<section class="section-light">
+  <div class="container">
+    <div class="page-header">
+      <h1>RSS Feeds</h1>
+      <div class="page-header-actions">
+        {{ btn.btn_primary("Add Feed", onclick="openModal('add-feed-modal')") }}
+      </div>
+    </div>
+
+    {% if feeds %}
+    <div class="card-feature-light" style="padding: 0; overflow: hidden;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>URL</th>
+            <th>Topic</th>
+            <th>Interval</th>
+            <th>Status</th>
+            <th>Last Fetched</th>
+            <th class="text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for feed in feeds %}
+          <tr>
+            <td><strong>{{ feed.name }}</strong></td>
+            <td class="truncate" style="max-width: 200px;">
+              <span class="body-sm text-muted">{{ feed.url }}</span>
+            </td>
+            <td>{{ feed.topic or '—' }}</td>
+            <td>Every {{ feed.fetch_interval_minutes }}m</td>
+            <td>
+              {% if feed.active %}
+              {{ badge.badge_success("Active") }}
+              {% else %}
+              {{ badge.badge_tag("Paused") }}
+              {% endif %}
+            </td>
+            <td class="body-sm text-muted">
+              {{ feed.last_fetched_at.strftime('%Y-%m-%d %H:%M') if feed.last_fetched_at else 'Never' }}
+            </td>
+            <td>
+              <div class="actions">
+                <form method="post" action="/feeds/{{ feed.id }}/toggle" style="display:inline;">
+                  <button type="submit" class="btn btn-pill-sm">
+                    {% if feed.active %}Pause{% else %}Activate{% endif %}
+                  </button>
+                </form>
+                <button class="btn btn-pill-sm" onclick="editFeed({{ feed.id }}, '{{ feed.name }}', '{{ feed.url }}', '{{ feed.topic }}', {{ feed.fetch_interval_minutes }})">Edit</button>
+                <form method="post" action="/feeds/{{ feed.id }}/delete" style="display:inline;" onsubmit="return confirm('Delete this feed?')">
+                  <button type="submit" class="btn btn-pill-sm" style="color: var(--color-accent-danger);">Delete</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="card-feature-light">
+      <div class="empty-state">
+        <div class="empty-state-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--color-stone)" stroke-width="1.5">
+            <path d="M4 11a9 9 0 0 1 9 9"></path>
+            <path d="M4 4a16 16 0 0 1 16 16"></path>
+            <circle cx="5" cy="19" r="1"></circle>
+          </svg>
+        </div>
+        <div class="empty-state-title">No RSS Feeds</div>
+        <div class="empty-state-text">Add RSS feeds from news publications to use as source material for article generation.</div>
+        <div class="mt-lg">
+          {{ btn.btn_primary("Add Your First Feed", onclick="openModal('add-feed-modal')") }}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+<!-- Add Feed Modal -->
+{% call modal.modal("add-feed-modal", "Add RSS Feed") %}
+<form method="post" action="/feeds/new">
+  <div class="form-group">
+    <label class="form-label" for="name">Feed Name</label>
+    <input type="text" id="name" name="name" class="text-input" placeholder="e.g., TechCrunch AI" required>
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="url">RSS Feed URL</label>
+    <input type="url" id="url" name="url" class="text-input" placeholder="https://example.com/rss" required>
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="topic">Topic (for filtering)</label>
+    <input type="text" id="topic" name="topic" class="text-input" placeholder="e.g., AI, Technology, Finance">
+    <p class="form-help">Assign a topic label to group related feeds together.</p>
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="fetch_interval_minutes">Fetch Interval (minutes)</label>
+    <input type="number" id="fetch_interval_minutes" name="fetch_interval_minutes" class="text-input" value="60" min="5">
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-soft" onclick="closeModal('add-feed-modal')">Cancel</button>
+    <button type="submit" class="btn btn-primary">Add Feed</button>
+  </div>
+</form>
+{% endcall %}
+
+<script>
+function editFeed(id, name, url, topic, interval) {
+  // Populate and open edit modal (reuse add modal with different action)
+  document.getElementById('add-feed-modal').querySelector('form').action = `/feeds/${id}/edit`;
+  document.getElementById('add-feed-modal').querySelector('h2').textContent = 'Edit RSS Feed';
+  document.getElementById('name').value = name;
+  document.getElementById('url').value = url;
+  document.getElementById('topic').value = topic;
+  document.getElementById('fetch_interval_minutes').value = interval;
+  openModal('add-feed-modal');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% import "components/button.html" as btn %}
+{% import "components/input.html" as input %}
+
+{% block title %}{{ 'Edit' if action == 'edit' else 'Create' }} Prompt — GhostWriter{% endblock %}
+
+{% block content %}
+<section class="section-light">
+  <div class="container" style="max-width: 800px;">
+    <div class="page-header">
+      <h1>{{ 'Edit' if action == 'edit' else 'Create' }} Prompt</h1>
+      <div class="page-header-actions">
+        {{ btn.btn_soft("Back to Prompts", href="/prompts") }}
+      </div>
+    </div>
+
+    <div class="card-feature-light">
+      <form method="post" action="{% if action == 'edit' %}/prompts/{{ prompt.id }}/edit{% else %}/prompts/new{% endif %}">
+        {{ input.text_input("name", "Prompt Name", value=prompt.name if prompt else '', placeholder="e.g., Tech News Writer") }}
+
+        <div class="form-group">
+          <label class="form-label" for="content">System Prompt</label>
+          <textarea id="content" name="content" rows="12" class="textarea-input mono"
+                    placeholder="You are a professional technology journalist...">{{ prompt.content if prompt else '' }}</textarea>
+          <p class="form-help">The system prompt defines the LLM's behavior, tone, and writing style. Be specific about structure and requirements.</p>
+        </div>
+
+        <div class="form-row">
+          {{ input.select_input("model_override", "Model Override", options=[
+            {'value': '', 'label': 'Use Default Model'},
+            {'value': 'gpt-4o', 'label': 'GPT-4o'},
+            {'value': 'gpt-4o-mini', 'label': 'GPT-4o Mini'},
+            {'value': 'claude-sonnet-4-20250514', 'label': 'Claude Sonnet 4'},
+            {'value': 'claude-haiku-3-5-20241022', 'label': 'Claude Haiku 3.5'},
+            {'value': 'deepseek-chat', 'label': 'Deepseek Chat'},
+            {'value': 'gemini-2.0-flash', 'label': 'Gemini 2.0 Flash'},
+          ], value=prompt.model_override if prompt else '') }}
+
+          {{ input.text_input("temperature", "Temperature", value=prompt.temperature|string if prompt else '0.7', type="number", placeholder="0.0 - 1.0", help="Lower = more deterministic, higher = more creative") }}
+        </div>
+
+        <div class="form-row">
+          {{ input.text_input("max_tokens", "Max Tokens", value=prompt.max_tokens|string if prompt else '4000', type="number", help="Maximum response length") }}
+          <div></div>
+        </div>
+
+        <div class="flex gap-md" style="margin-top: var(--spacing-xl);">
+          {{ btn.btn_primary("Save Prompt", type="submit") }}
+          {% if action == 'edit' %}
+          <form method="post" action="/prompts/{{ prompt.id }}/delete" style="display:inline;" onsubmit="return confirm('Delete this prompt?')">
+            <button type="submit" class="btn btn-soft" style="color: var(--color-accent-danger);">Delete</button>
+          </form>
+          {% endif %}
+          {{ btn.btn_soft("Cancel", href="/prompts") }}
+        </div>
+      </form>
+    </div>
+  </div>
+</section>
+{% endblock %}

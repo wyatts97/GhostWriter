@@ -1,0 +1,25 @@
+{% macro card_feature_light(title='', class='') %}
+<div class="card-feature-light {{ class }}">
+  {% if title %}<h3 class="heading-sm mb-md">{{ title }}</h3>{% endif %}
+  {{ caller() }}
+</div>
+{% endmacro %}
+
+{% macro card_feature_dark(title='', class='') %}
+<div class="card-feature-dark {{ class }}">
+  {% if title %}<h3 class="heading-sm mb-md" style="color: var(--color-on-dark);">{{ title }}</h3>{% endif %}
+  {{ caller() }}
+</div>
+{% endmacro %}
+
+{% macro card_stat(value, label, trend=None, trend_up=True, class='') %}
+<div class="card-stat {{ class }}">
+  <div class="card-stat-value">{{ value }}</div>
+  <div class="card-stat-label">{{ label }}</div>
+  {% if trend %}
+  <div class="card-stat-trend {{ 'up' if trend_up else 'down' }}">
+    {{ trend }}
+  </div>
+  {% endif %}
+</div>
+{% endmacro %}

@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% import "components/button.html" as btn %}
+{% import "components/badge.html" as badge %}
+
+{% block title %}Articles — GhostWriter{% endblock %}
+
+{% block content %}
+<section class="section-dark">
+  <div class="container">
+    <div class="page-header">
+      <h1>Articles</h1>
+      <div class="page-header-actions">
+        <span class="body-sm text-muted" style="color: var(--color-on-dark-mute);">{{ counts.all }} total</span>
+      </div>
+    </div>
+
+    <!-- Filter Pills -->
+    <div class="sub-nav">
+      <a href="/articles?status=all"
+         class="sub-nav-pill {% if current_status == 'all' %}active{% endif %}">
+        All ({{ counts.all }})
+      </a>
+      <a href="/articles?status=draft"
+         class="sub-nav-pill {% if current_status == 'draft' %}active{% endif %}">
+        Drafts ({{ counts.draft }})
+      </a>
+      <a href="/articles?status=draft_sent"
+         class="sub-nav-pill {% if current_status == 'draft_sent' %}active{% endif %}">
+        Sent to Ghost ({{ counts.draft_sent }})
+      </a>
+      <a href="/articles?status=published"
+         class="sub-nav-pill {% if current_status == 'published' %}active{% endif %}">
+        Published ({{ counts.published }})
+      </a>
+      <a href="/articles?status=failed"
+         class="sub-nav-pill {% if current_status == 'failed' %}active{% endif %}">
+        Failed ({{ counts.failed }})
+      </a>
+    </div>
+
+    {% if articles %}
+    <div class="card-feature-dark" style="padding: 0; overflow: hidden;">
+      <table class="data-table" style="color: var(--color-on-dark);">
+        <thead>
+          <tr>
+            <th style="color: var(--color-on-dark-mute);">Status</th>
+            <th style="color: var(--color-on-dark-mute);">Title</th>
+            <th style="color: var(--color-on-dark-mute);">Prompt</th>
+            <th style="color: var(--color-on-dark-mute);">Created</th>
+            <th class="text-right" style="color: var(--color-on-dark-mute);">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in articles %}
+          {% set a = item.article %}
+          <tr>
+            <td>
+              {% if a.status == 'published' %}
+              {{ badge.badge_success("Published") }}
+              {% elif a.status == 'failed' %}
+              {{ badge.badge_danger("Failed") }}
+              {% elif a.status == 'draft_sent' %}
+              {{ badge.badge_feature("Sent") }}
+              {% else %}
+              {{ badge.badge_tag("Draft") }}
+              {% endif %}
+            </td>
+            <td>
+              <a href="/articles/{{ a.id }}" style="color: var(--color-on-dark);">
+                <strong>{{ a.title[:60] }}{% if a.title|length > 60 %}...{% endif %}</strong>
+              </a>
+            </td>
+            <td class="body-sm" style="color: var(--color-on-dark-mute);">{{ item.prompt_name }}</td>
+            <td class="body-sm" style="color: var(--color-on-dark-mute);">
+              {{ a.created_at.strftime('%Y-%m-%d %H:%M') if a.created_at else '—' }}
+            </td>
+            <td>
+              <div class="actions">
+                <a href="/articles/{{ a.id }}" class="btn btn-pill-sm">View</a>
+                {% if a.status in ('draft', 'draft_sent') %}
+                <form method="post" action="/articles/{{ a.id }}/publish" style="display:inline;" onsubmit="return confirm('Publish this article to Ghost?')">
+                  <button type="submit" class="btn btn-pill-sm" style="background-color: var(--color-primary); color: white;">Publish</button>
+                </form>
+                {% endif %}
+                <form method="post" action="/articles/{{ a.id }}/delete" style="display:inline;" onsubmit="return confirm('Delete this article?')">
+                  <button type="submit" class="btn btn-pill-sm" style="color: var(--color-accent-danger);">Delete</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="card-feature-dark">
+      <div class="empty-state">
+        <div class="empty-state-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--color-on-dark-mute)" stroke-width="1.5">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+          </svg>
+        </div>
+        <div class="empty-state-title">No Articles</div>
+        <div class="empty-state-text">Articles will appear here once generated. Set up a schedule or manually generate one.</div>
+        <div class="mt-lg">
+          {{ btn.btn_primary("Create a Schedule", href="/schedules/new") }}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

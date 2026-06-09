@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% import "components/button.html" as btn %}
+{% import "components/input.html" as input %}
+
+{% block title %}{{ 'Edit' if action == 'edit' else 'Create' }} Schedule — GhostWriter{% endblock %}
+
+{% block content %}
+<section class="section-light">
+  <div class="container" style="max-width: 700px;">
+    <div class="page-header">
+      <h1>{{ 'Edit' if action == 'edit' else 'Create' }} Schedule</h1>
+      <div class="page-header-actions">
+        {{ btn.btn_soft("Back to Schedules", href="/schedules") }}
+      </div>
+    </div>
+
+    <div class="card-feature-light">
+      <form method="post" action="{% if action == 'edit' %}/schedules/{{ schedule.id }}/edit{% else %}/schedules/new{% endif %}">
+        {{ input.text_input("name", "Schedule Name", value=schedule.name if schedule else '', placeholder="e.g., Morning Tech Digest") }}
+
+        <!-- Cron Expression Builder -->
+        <div class="form-group">
+          <label class="form-label">Frequency</label>
+          <div class="pill-toggle" id="cron-presets">
+            <button type="button" class="pill-toggle-option" data-cron="0 * * * *">Every Hour</button>
+            <button type="button" class="pill-toggle-option" data-cron="0 */4 * * *">Every 4 Hours</button>
+            <button type="button" class="pill-toggle-option active" data-cron="0 0,12 * * *">Twice Daily</button>
+            <button type="button" class="pill-toggle-option" data-cron="0 0 * * *">Daily</button>
+            <button type="button" class="pill-toggle-option" data-cron="0 0 * * 1">Weekly</button>
+            <button type="button" class="pill-toggle-option" data-cron="custom">Custom</button>
+          </div>
+          <input type="text" id="cron_expression" name="cron_expression"
+                 class="text-input mt-sm"
+                 value="{{ schedule.cron_expression if schedule else '0 0,12 * * *' }}"
+                 placeholder="e.g., 0 */4 * * *">
+          <p class="form-help">Cron expression: minute hour day-of-month month day-of-week</p>
+        </div>
+
+        {{ input.select_input("prompt_id", "Prompt", options=[{'value': '', 'label': '— Select a prompt —'}] + [{'value': p.id|string, 'label': p.name} for p in prompts], value=schedule.prompt_id|string if schedule else '') }}
+
+        <!-- Feed Selection -->
+        <div class="form-group">
+          <label class="form-label">RSS Feeds (source material)</label>
+          <div class="card-feature-light" style="padding: var(--spacing-lg);">
+            {% if feeds %}
+            {% set selected_feeds = schedule.feed_ids|default('[]') %}
+            <div class="flex flex-col gap-sm">
+              {% for feed in feeds %}
+              <label class="flex items-center gap-sm" style="cursor: pointer; padding: 4px 0;">
+                <input type="checkbox" name="feed_ids" value="{{ feed.id }}"
+                  {% if schedule and selected_feeds and ('"' ~ feed.id ~ '"') in selected_feeds %}checked{% endif %}
+                  style="width: 18px; height: 18px; accent-color: var(--color-primary);">
+                <span class="body-sm">{{ feed.name }}</span>
+                {% if feed.topic %}
+                <span class="caption" style="color: var(--color-stone);">({{ feed.topic }})</span>
+                {% endif %}
+              </label>
+              {% endfor %}
+            </div>
+            {% else %}
+            <p class="body-sm text-muted">No RSS feeds configured. <a href="/feeds">Add feeds first</a>.</p>
+            {% endif %}
+          </div>
+          <input type="hidden" name="feed_ids_json" id="feed_ids_json" value="">
+        </div>
+
+        <div class="form-row">
+          {{ input.select_input("publish_mode", "Publish Mode", options=[
+            {'value': 'draft', 'label': 'Save as Draft'},
+            {'value': 'publish', 'label': 'Publish Immediately'},
+          ], value=schedule.publish_mode if schedule else 'draft') }}
+          {{ input.text_input("max_articles_per_run", "Articles per Run", value=(schedule.max_articles_per_run|string) if schedule else '1', type="number", help="How many articles to generate each time") }}
+        </div>
+
+        <div class="flex items-center gap-md mb-xl">
+          {{ input.toggle("active", checked=(schedule.active if schedule else true)) }}
+          <span class="body-sm">Active</span>
+        </div>
+
+        <div class="flex gap-md">
+          {{ btn.btn_primary("Save Schedule", type="submit") }}
+          {% if action == 'edit' %}
+          <form method="post" action="/schedules/{{ schedule.id }}/delete" style="display:inline;" onsubmit="return confirm('Delete this schedule?')">
+            <button type="submit" class="btn btn-soft" style="color: var(--color-accent-danger);">Delete</button>
+          </form>
+          {% endif %}
+          {{ btn.btn_soft("Cancel", href="/schedules") }}
+        </div>
+      </form>
+    </div>
+  </div>
+</section>
+
+<script>
+// Cron preset selector
+document.querySelectorAll('#cron-presets .pill-toggle-option').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('#cron-presets .pill-toggle-option').forEach(function(b) {
+      b.classList.remove('active');
+    });
+    this.classList.add('active');
+    if (this.dataset.cron !== 'custom') {
+      document.getElementById('cron_expression').value = this.dataset.cron;
+    }
+  });
+});
+
+// Collect feed checkboxes into hidden JSON field
+document.querySelector('form').addEventListener('submit', function() {
+  var checks = document.querySelectorAll('input[name="feed_ids"]:checked');
+  var ids = [];
+  checks.forEach(function(c) { ids.push(parseInt(c.value)); });
+  document.getElementById('feed_ids_json').value = JSON.stringify(ids);
+  // Remove individual checkboxes from submission
+  checks.forEach(function(c) { c.removeAttribute('name'); });
+});
+</script>
+{% endblock %}

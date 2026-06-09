@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% import "components/button.html" as btn %}
+{% import "components/card.html" as card %}
+{% import "components/badge.html" as badge %}
+
+{% block title %}Prompts — GhostWriter{% endblock %}
+
+{% block content %}
+<section class="section-dark">
+  <div class="container">
+    <div class="page-header">
+      <h1>Prompts</h1>
+      <div class="page-header-actions">
+        {{ btn.btn_primary("Create Prompt", href="/prompts/new") }}
+      </div>
+    </div>
+
+    {% if prompts %}
+    <div class="grid-2">
+      {% for prompt in prompts %}
+      <div class="card-feature-dark">
+        <div class="flex justify-between items-start mb-md">
+          <h3 class="heading-sm">{{ prompt.name }}</h3>
+          <div class="flex gap-sm">
+            {% if prompt.model_override %}
+            {{ badge.badge_feature(prompt.model_override) }}
+            {% endif %}
+          </div>
+        </div>
+        <div class="body-sm text-muted mb-md" style="color: var(--color-on-dark-mute);">
+          Temperature: {{ prompt.temperature }} &middot;
+          Max tokens: {{ prompt.max_tokens }} &middot;
+          Created: {{ prompt.created_at.strftime('%Y-%m-%d') if prompt.created_at else '—' }}
+        </div>
+        <div class="body-sm mb-md" style="color: var(--color-on-dark-mute); max-height: 80px; overflow: hidden;">
+          {{ prompt.content[:200] }}{% if prompt.content|length > 200 %}...{% endif %}
+        </div>
+        <div class="flex gap-sm">
+          {{ btn.btn_pill_sm("Edit", href="/prompts/" ~ prompt.id) }}
+          <form method="post" action="/prompts/{{ prompt.id }}/delete" style="display:inline;" onsubmit="return confirm('Delete this prompt?')">
+            <button type="submit" class="btn btn-pill-sm" style="color: var(--color-accent-danger);">Delete</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card-feature-dark">
+      <div class="empty-state">
+        <div class="empty-state-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--color-on-dark-mute)" stroke-width="1.5">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+        </div>
+        <div class="empty-state-title">No Prompts Yet</div>
+        <div class="empty-state-text">Create system prompts that define how the LLM should write articles. Each prompt controls the tone, style, and structure.</div>
+        <div class="mt-lg">
+          {{ btn.btn_primary("Create Your First Prompt", href="/prompts/new") }}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

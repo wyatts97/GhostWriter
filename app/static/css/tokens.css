@@ -1,0 +1,94 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   GhostWriter — Design Tokens
+   Inspired by the Revolut design system (DESIGN.MD)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Brand & Accent ─────────────────────────────────────────────────── */
+  --color-primary: #494fdf;
+  --color-primary-bright: #4f55f1;
+  --color-primary-deep: #3a40c4;
+  --color-on-primary: #ffffff;
+
+  /* ── Surface / Canvas ───────────────────────────────────────────────── */
+  --color-canvas-light: #ffffff;
+  --color-canvas-dark: #000000;
+  --color-surface-soft: #f4f4f4;
+  --color-surface-card: #ffffff;
+  --color-surface-deep: #0a0a0a;
+  --color-surface-elevated: #16181a;
+
+  /* ── Hairline Borders ───────────────────────────────────────────────── */
+  --color-hairline-light: #e2e2e7;
+  --color-hairline-dark: rgba(255, 255, 255, 0.12);
+  --color-hairline-strong: #191c1f;
+
+  /* ── Text ───────────────────────────────────────────────────────────── */
+  --color-ink: #191c1f;
+  --color-body: #1f2226;
+  --color-charcoal: #3a3d40;
+  --color-mute: #505a63;
+  --color-ash: #5c5e60;
+  --color-stone: #8d969e;
+  --color-faint: #c9c9cd;
+  --color-on-dark: #ffffff;
+  --color-on-dark-mute: rgba(255, 255, 255, 0.72);
+
+  /* ── Semantic / Accent ──────────────────────────────────────────────── */
+  --color-accent-teal: #00a87e;
+  --color-accent-light-blue: #007bc2;
+  --color-accent-blue-link: #376cd5;
+  --color-accent-light-green: #428619;
+  --color-accent-green-text: #006400;
+  --color-accent-yellow: #b09000;
+  --color-accent-warning: #ec7e00;
+  --color-accent-pink: #e61e49;
+  --color-accent-danger: #e23b4a;
+  --color-accent-deep-red: #8b0000;
+  --color-accent-brown: #936d62;
+  --color-link: #376cd5;
+
+  /* ── Typography ─────────────────────────────────────────────────────── */
+  --font-display: "Inter", "General Sans", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+
+  /*
+    Typography Scale (reference):
+    display-xxl: 136px / 1.0  / -2.72px  — weight 500
+    display-xl:   80px / 1.0  / -0.8px   — weight 500
+    display-lg:   48px / 1.21 / -0.48px  — weight 500
+    display-md:   40px / 1.2  / -0.4px   — weight 500
+    heading-lg:   32px / 1.19 / -0.32px  — weight 500
+    heading-md:   24px / 1.33 /  0       — weight 500
+    heading-sm:   20px / 1.4  /  0       — weight 500
+    body-lg:      18px / 1.56 / -0.09px  — weight 400
+    body-md:      16px / 1.5  /  0.24px  — weight 400
+    body-md-bold: 16px / 1.5  /  0.16px  — weight 600
+    body-sm:      14px / 1.43 /  0       — weight 400
+    button-lg:    20px / 1.4  /  0       — weight 500
+    button-md:    16px / 1.5  /  0.24px  — weight 600
+    button-sm:    14px / 1.43 /  0       — weight 600
+    caption:      13px / 1.4  /  0       — weight 400
+  */
+
+  /* ── Spacing (4px base) ─────────────────────────────────────────────── */
+  --spacing-xxs: 4px;
+  --spacing-xs: 6px;
+  --spacing-sm: 8px;
+  --spacing-md: 14px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+  --spacing-xxl: 32px;
+  --spacing-xxxl: 48px;
+  --spacing-block: 80px;
+  --spacing-section: 88px;
+  --spacing-band: 120px;
+
+  /* ── Border Radius ──────────────────────────────────────────────────── */
+  --radius-none: 0px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-full: 9999px;
+}

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}GhostWriter{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='css/main.css') }}">
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav class="nav-bar">
+        <div class="nav-brand">GhostWriter</div>
+        <div class="nav-links">
+            <a href="{{ url_for('dashboard') }}"
+               class="nav-link {% if active_page == 'dashboard' %}active{% endif %}">
+               Dashboard
+            </a>
+            <a href="/prompts"
+               class="nav-link {% if active_page == 'prompts' %}active{% endif %}">
+               Prompts
+            </a>
+            <a href="/feeds"
+               class="nav-link {% if active_page == 'feeds' %}active{% endif %}">
+               Feeds
+            </a>
+            <a href="/schedules"
+               class="nav-link {% if active_page == 'schedules' %}active{% endif %}">
+               Schedules
+            </a>
+            <a href="/articles"
+               class="nav-link {% if active_page == 'articles' %}active{% endif %}">
+               Articles
+            </a>
+        </div>
+        <div class="nav-right">
+            <div class="nav-status">
+                <span class="nav-status-dot"></span>
+                <span>Online</span>
+            </div>
+            <a href="/settings" class="btn-icon" title="Settings">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path>
+                </svg>
+            </a>
+        </div>
+    </nav>
+
+    <!-- Flash Messages -->
+    <div class="flash-messages" id="flash-messages">
+        {% if saved %}
+        <div class="flash-message success">Settings saved successfully.</div>
+        {% endif %}
+    </div>
+
+    <!-- Main Content -->
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <script>
+        // Auto-dismiss flash messages
+        document.addEventListener('DOMContentLoaded', function() {
+            const flashes = document.querySelectorAll('.flash-message');
+            flashes.forEach(function(msg) {
+                setTimeout(function() {
+                    msg.style.opacity = '0';
+                    msg.style.transition = 'opacity 0.3s ease';
+                    setTimeout(function() { msg.remove(); }, 300);
+                }, 4000);
+            });
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

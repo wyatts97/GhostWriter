@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% import "components/card.html" as card %}
+{% import "components/button.html" as btn %}
+{% import "components/badge.html" as badge %}
+
+{% block title %}Dashboard — GhostWriter{% endblock %}
+
+{% block content %}
+<section class="section-dark">
+  <div class="container">
+    <div class="page-header">
+      <h1>Dashboard</h1>
+      <div class="page-header-actions">
+        {{ btn.btn_primary("Generate Article", onclick="openModal('generate-modal')") }}
+        {{ btn.btn_outline_dark("Test Feeds", href="/feeds") }}
+      </div>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="stats-row">
+      {{ card.card_stat(stats.articles_today, "Articles Today", "Updated in real-time") }}
+      {{ card.card_stat(stats.articles_published, "Published", "+" ~ stats.articles_published ~ " total") }}
+      {{ card.card_stat(stats.active_schedules, "Active Schedules", "Generating on cron") }}
+      {{ card.card_stat(stats.total_feeds, "RSS Feeds", "Sources tracked") }}
+    </div>
+
+    <!-- Two-Column Layout -->
+    <div class="grid-2" style="grid-template-columns: 1.5fr 1fr;">
+      <!-- Recent Activity -->
+      <div>
+        <h2 class="heading-md mb-lg" style="color: var(--color-on-dark);">Recent Activity</h2>
+        <div class="card-feature-dark">
+          {% if recent_articles %}
+          <div class="activity-feed">
+            {% for article in recent_articles %}
+            <div class="activity-item">
+              <div class="activity-icon
+                {% if article.status == 'published' %}success
+                {% elif article.status == 'failed' %}error
+                {% else %}info{% endif %}">
+                {% if article.status == 'published' %}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                {% elif article.status == 'failed' %}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                {% else %}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                {% endif %}
+              </div>
+              <div class="activity-content">
+                <div class="activity-title">{{ article.title[:60] }}{% if article.title|length > 60 %}...{% endif %}</div>
+                <div class="activity-meta">
+                  Status: {{ article.status }} &middot;
+                  {{ article.created_at.strftime('%Y-%m-%d %H:%M') if article.created_at else '' }}
+                </div>
+              </div>
+              <div>
+                {% if article.status == 'published' %}
+                {{ badge.badge_success("Published") }}
+                {% elif article.status == 'failed' %}
+                {{ badge.badge_danger("Failed") }}
+                {% elif article.status == 'draft_sent' %}
+                {{ badge.badge_feature("Sent") }}
+                {% else %}
+                {{ badge.badge_tag("Draft") }}
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="empty-state">
+            <div class="empty-state-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--color-on-dark-mute)" stroke-width="1.5">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+              </svg>
+            </div>
+            <div class="empty-state-text">No articles generated yet. Configure a schedule or generate manually.</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div>
+        <h2 class="heading-md mb-lg" style="color: var(--color-on-dark);">Quick Actions</h2>
+        <div class="card-feature-dark flex flex-col gap-md">
+          {{ btn.btn_primary("Generate Article Now", onclick="openModal('generate-modal')") }}
+          {{ btn.btn_soft("Test All RSS Feeds", href="/feeds") }}
+          {{ btn.btn_soft("Create New Prompt", href="/prompts/new") }}
+          {{ btn.btn_outline_dark("View Article History", href="/articles") }}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Generate Modal -->
+{% import "components/modal.html" as modal %}
+{% call modal.modal("generate-modal", "Generate Article") %}
+<form method="post" action="/schedules/run" id="generate-form">
+  <div class="form-group">
+    <label class="form-label">Select Schedule</label>
+    <select name="schedule_id" class="select-input" required>
+      <option value="">— Choose a schedule —</option>
+    </select>
+    <p class="form-help">Choose a schedule to run immediately. Schedules must have a prompt assigned.</p>
+  </div>
+  <div class="modal-footer" style="margin-top: var(--spacing-xl);">
+    <button type="button" class="btn btn-soft" onclick="closeModal('generate-modal')">Cancel</button>
+    <button type="submit" class="btn btn-primary">Generate</button>
+  </div>
+</form>
+{% endcall %}
+{% endblock %}

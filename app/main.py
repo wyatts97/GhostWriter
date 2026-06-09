@@ -1,13 +1,10 @@
-import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.config import settings
 from app.database import init_db
 
 # ── Lifespan ────────────────────────────────────────────────────────────────
@@ -67,7 +64,4 @@ async def health_check():
     return {"status": "ok", "app": "GhostWriter", "version": "1.0.0"}
 
 
-# ── Root Redirect ────────────────────────────────────────────────────────────
-@app.get("/", response_class=HTMLResponse)
-async def root(request: Request):
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+# ── Root handled by dashboard router ─────────────────────────────────────────

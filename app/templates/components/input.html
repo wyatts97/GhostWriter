@@ -1,0 +1,67 @@
+{% macro text_input(name, label='', value='', placeholder='', error='', help='', type='text', class='') %}
+<div class="form-group">
+  {% if label %}<label class="form-label" for="{{ name }}">{{ label }}</label>{% endif %}
+  <input type="{{ type }}" id="{{ name }}" name="{{ name }}"
+         value="{{ value }}" placeholder="{{ placeholder }}"
+         class="text-input {{ 'error' if error }} {{ class }}">
+  {% if help %}<p class="form-help">{{ help }}</p>{% endif %}
+  {% if error %}<p class="form-help" style="color: var(--color-accent-danger);">{{ error }}</p>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro select_input(name, label='', options=[], value='', class='') %}
+<div class="form-group">
+  {% if label %}<label class="form-label" for="{{ name }}">{{ label }}</label>{% endif %}
+  <select id="{{ name }}" name="{{ name }}" class="select-input {{ class }}">
+    {% for opt in options %}
+    <option value="{{ opt.value }}" {% if opt.value == value %}selected{% endif %}>{{ opt.label }}</option>
+    {% endfor %}
+  </select>
+</div>
+{% endmacro %}
+
+{% macro textarea_input(name, label='', value='', rows=6, placeholder='', class='') %}
+<div class="form-group">
+  {% if label %}<label class="form-label" for="{{ name }}">{{ label }}</label>{% endif %}
+  <textarea id="{{ name }}" name="{{ name }}" rows="{{ rows }}"
+            placeholder="{{ placeholder }}"
+            class="textarea-input {{ class }}">{{ value }}</textarea>
+</div>
+{% endmacro %}
+
+{% macro form_group(label, name, help='', error='') %}
+<div class="form-group">
+  {% if label %}<label class="form-label" for="{{ name }}">{{ label }}</label>{% endif %}
+  {{ caller() }}
+  {% if help %}<p class="form-help">{{ help }}</p>{% endif %}
+  {% if error %}<p class="form-help" style="color: var(--color-accent-danger);">{{ error }}</p>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro toggle(name, label='', checked=False) %}
+<label class="toggle">
+  <input type="checkbox" name="{{ name }}" {% if checked %}checked{% endif %}>
+  <span class="toggle-track"></span>
+  {% if label %}<span class="body-sm">{{ label }}</span>{% endif %}
+</label>
+{% endmacro %}
+
+{% macro pill_toggle(name, options=[], value='') %}
+<div class="pill-toggle" id="{{ name }}-toggle">
+  {% for opt in options %}
+  <button type="button" class="pill-toggle-option {% if opt.value == value %}active{% endif %}"
+          data-value="{{ opt.value }}" data-name="{{ name }}"
+          onclick="selectPillToggle(this, '{{ name }}')">
+    {{ opt.label }}
+  </button>
+  {% endfor %}
+  <input type="hidden" name="{{ name }}" value="{{ value }}">
+</div>
+<script>
+function selectPillToggle(el, name) {
+  document.querySelectorAll(`#${name}-toggle .pill-toggle-option`).forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelector(`input[name="${name}"]`).value = el.dataset.value;
+}
+</script>
+{% endmacro %}

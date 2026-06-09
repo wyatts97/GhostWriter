@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% import "components/button.html" as btn %}
+{% import "components/input.html" as input %}
+
+{% block title %}Settings — GhostWriter{% endblock %}
+
+{% block content %}
+<section class="section-light">
+  <div class="container" style="max-width: 700px;">
+    <div class="page-header">
+      <h1>Settings</h1>
+    </div>
+
+    {% if saved %}
+    <div class="card-feature-light mb-xl" style="border-left: 4px solid var(--color-accent-light-green);">
+      <div class="flex items-center gap-md">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-light-green)" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        <span class="body-md-bold" style="color: var(--color-accent-green-text);">Settings saved successfully.</span>
+      </div>
+    </div>
+    {% endif %}
+
+    <form method="post" action="/settings/save">
+      <!-- LLM Provider Section -->
+      <div class="card-feature-light mb-xl">
+        <h2 class="heading-md mb-lg">LLM Provider</h2>
+
+        {{ input.text_input("llm_api_base", "API Base URL",
+          value=settings.llm_api_base,
+          placeholder="https://api.openai.com/v1",
+          help="OpenAI-compatible API endpoint. Supports OpenAI, Claude, Deepseek, Gemini.") }}
+
+        {{ input.text_input("llm_api_key", "API Key",
+          value=settings.llm_api_key,
+          type="password",
+          placeholder="sk-...",
+          help="Your API key. Stored encrypted at rest.") }}
+
+        {{ input.text_input("llm_default_model", "Default Model",
+          value=settings.llm_default_model,
+          placeholder="gpt-4o",
+          help="Default model to use for article generation. Can be overridden per prompt.") }}
+
+        <div class="mt-md">
+          <button type="button" class="btn btn-soft" onclick="testLlmConnection()">Test LLM Connection</button>
+          <span id="llm-test-result" class="body-sm text-muted ml-md"></span>
+        </div>
+      </div>
+
+      <!-- Ghost Integration Section -->
+      <div class="card-feature-light mb-xl">
+        <h2 class="heading-md mb-lg">Ghost Integration</h2>
+
+        {{ input.text_input("ghost_admin_url", "Admin URL",
+          value=settings.ghost_admin_url,
+          placeholder="https://yourblog.ghost.io",
+          help="Your Ghost blog's URL (no trailing slash).") }}
+
+        {{ input.text_input("ghost_admin_api_key", "Admin API Key",
+          value=settings.ghost_admin_api_key,
+          type="password",
+          placeholder="your-admin-api-key",
+          help="Create a Custom Integration in Ghost Admin to get this key.") }}
+
+        <div class="mt-md">
+          <button type="button" class="btn btn-soft" onclick="testGhostConnection()">Test Ghost Connection</button>
+          <span id="ghost-test-result" class="body-sm text-muted ml-md"></span>
+        </div>
+      </div>
+
+      <!-- General Section -->
+      <div class="card-feature-light mb-xl">
+        <h2 class="heading-md mb-lg">General</h2>
+
+        {{ input.select_input("log_level", "Log Level", options=[
+          {'value': 'debug', 'label': 'Debug'},
+          {'value': 'info', 'label': 'Info'},
+          {'value': 'warning', 'label': 'Warning'},
+          {'value': 'error', 'label': 'Error'},
+        ], value=settings.log_level) }}
+      </div>
+
+      <div class="flex justify-end">
+        {{ btn.btn_primary("Save Settings", type="submit") }}
+      </div>
+    </form>
+  </div>
+</section>
+
+<script>
+async function testLlmConnection() {
+  const el = document.getElementById('llm-test-result');
+  el.textContent = 'Testing...';
+  el.style.color = 'var(--color-stone)';
+  try {
+    const res = await fetch('/settings/test-llm', { method: 'POST' });
+    const data = await res.json();
+    el.textContent = data.message;
+    el.style.color = data.success ? 'var(--color-accent-light-green)' : 'var(--color-accent-danger)';
+  } catch(e) {
+    el.textContent = 'Connection failed';
+    el.style.color = 'var(--color-accent-danger)';
+  }
+}
+
+async function testGhostConnection() {
+  const el = document.getElementById('ghost-test-result');
+  el.textContent = 'Testing...';
+  el.style.color = 'var(--color-stone)';
+  try {
+    const res = await fetch('/settings/test-ghost', { method: 'POST' });
+    const data = await res.json();
+    el.textContent = data.message;
+    el.style.color = data.success ? 'var(--color-accent-light-green)' : 'var(--color-accent-danger)';
+  } catch(e) {
+    el.textContent = 'Connection failed';
+    el.style.color = 'var(--color-accent-danger)';
+  }
+}
+</script>
+{% endblock %}

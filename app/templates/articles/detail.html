@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% import "components/button.html" as btn %}
+{% import "components/badge.html" as badge %}
+{% import "components/card.html" as card %}
+
+{% block title %}{{ article.title[:50] }} — GhostWriter{% endblock %}
+
+{% block content %}
+<section class="section-light">
+  <div class="container" style="max-width: 860px;">
+    <div class="page-header">
+      <div>
+        <h1 style="font-size: 32px; font-weight: 500; line-height: 1.19;">{{ article.title }}</h1>
+        <div class="flex items-center gap-md mt-sm">
+          {% if article.status == 'published' %}
+          {{ badge.badge_success("Published") }}
+          {% elif article.status == 'failed' %}
+          {{ badge.badge_danger("Failed") }}
+          {% elif article.status == 'draft_sent' %}
+          {{ badge.badge_feature("Sent to Ghost") }}
+          {% else %}
+          {{ badge.badge_tag("Local Draft") }}
+          {% endif %}
+          <span class="body-sm text-muted">
+            {{ article.created_at.strftime('%Y-%m-%d %H:%M') if article.created_at else '' }}
+          </span>
+          {% if article.prompt_id %}
+          <span class="body-sm text-muted">Prompt: {{ prompt_name }}</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="page-header-actions">
+        {% if article.status in ('draft', 'draft_sent') %}
+        <form method="post" action="/articles/{{ article.id }}/publish" style="display:inline;" onsubmit="return confirm('Publish this article to Ghost?')">
+          {{ btn.btn_primary("Publish to Ghost", type="submit") }}
+        </form>
+        {% endif %}
+        <form method="post" action="/articles/{{ article.id }}/delete" style="display:inline;" onsubmit="return confirm('Delete this article?')">
+          {{ btn.btn_soft("Delete") }}
+        </form>
+        {{ btn.btn_soft("Back to Articles", href="/articles") }}
+      </div>
+    </div>
+
+    <!-- Ghost Info -->
+    {% if article.ghost_post_id %}
+    <div class="card-feature-light mb-xl" style="border-left: 4px solid var(--color-primary);">
+      <div class="body-sm">
+        <strong>Ghost Post ID:</strong> {{ article.ghost_post_id }}
+        {% if article.ghost_url %}
+        &middot; <a href="{{ article.ghost_url }}" target="_blank">View on Ghost &rarr;</a>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if article.error_message %}
+    <div class="card-feature-light mb-xl" style="border-left: 4px solid var(--color-accent-danger);">
+      <div class="body-sm" style="color: var(--color-accent-danger);">
+        <strong>Error:</strong> {{ article.error_message }}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Excerpt -->
+    {% if article.excerpt %}
+    <div class="card-feature-light mb-xl">
+      <h2 class="heading-sm mb-sm">Excerpt</h2>
+      <p class="body-lg" style="color: var(--color-charcoal);">{{ article.excerpt }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Tags -->
+    {% if tags %}
+    <div class="flex gap-sm mb-xl" style="flex-wrap: wrap;">
+      {% for tag in tags %}
+      {{ badge.badge_tag(tag) }}
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Content Preview -->
+    <div class="card-feature-light mb-xl">
+      <h2 class="heading-sm mb-sm">Content</h2>
+      <div class="body-md" style="white-space: pre-wrap; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; line-height: 1.6; max-height: 600px; overflow-y: auto; background: var(--color-surface-soft); padding: var(--spacing-lg); border-radius: var(--radius-md);">
+        {{- article.content -}}
+      </div>
+    </div>
+
+    <!-- SEO Preview -->
+    <div class="card-feature-light mb-xl">
+      <h2 class="heading-sm mb-lg">SEO Preview</h2>
+
+      <div class="grid-2">
+        <div>
+          <h3 class="heading-sm mb-sm" style="font-size: 16px;">Search Result Preview</h3>
+          <div style="padding: var(--spacing-lg); background: var(--color-surface-soft); border-radius: var(--radius-md);">
+            <div style="color: #1a0dab; font-size: 18px; line-height: 1.3; margin-bottom: 2px;">
+              {{ article.seo_title or article.title }}
+            </div>
+            <div style="color: #006621; font-size: 14px; line-height: 1.4; margin-bottom: 2px;">
+              {{ article.ghost_url or 'yourblog.ghost.io' }}
+            </div>
+            <div style="color: #545454; font-size: 13px; line-height: 1.5;">
+              {{ article.seo_description or article.excerpt }}
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <h3 class="heading-sm mb-sm" style="font-size: 16px;">Metadata</h3>
+          <table class="data-table">
+            <tr>
+              <td style="font-weight: 600; width: 40%;">Meta Title</td>
+              <td class="body-sm">{{ article.seo_title or '—' }}</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 600;">Meta Description</td>
+              <td class="body-sm">{{ article.seo_description or '—' }}</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 600;">OG Title</td>
+              <td class="body-sm">{{ article.og_title or '—' }}</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 600;">OG Description</td>
+              <td class="body-sm">{{ article.og_description or '—' }}</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 600;">Twitter Title</td>
+              <td class="body-sm">{{ article.twitter_title or '—' }}</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 600;">Twitter Description</td>
+              <td class="body-sm">{{ article.twitter_description or '—' }}</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

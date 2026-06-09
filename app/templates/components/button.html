@@ -1,4 +1,4 @@
-{% macro btn_primary(label, href=None, class='', **kwargs) %}
+{% macro btn_primary(label, href=None, class='') %}
   {% if href %}
   <a href="{{ href }}" class="btn btn-primary {{ class }}" {{ kwargs | xmlattr }}>{{ label }}</a>
   {% else %}
@@ -6,7 +6,7 @@
   {% endif %}
 {% endmacro %}
 
-{% macro btn_dark(label, href=None, class='', **kwargs) %}
+{% macro btn_dark(label, href=None, class='') %}
   {% if href %}
   <a href="{{ href }}" class="btn btn-dark {{ class }}" {{ kwargs | xmlattr }}>{{ label }}</a>
   {% else %}
@@ -14,7 +14,7 @@
   {% endif %}
 {% endmacro %}
 
-{% macro btn_soft(label, href=None, class='', **kwargs) %}
+{% macro btn_soft(label, href=None, class='') %}
   {% if href %}
   <a href="{{ href }}" class="btn btn-soft {{ class }}" {{ kwargs | xmlattr }}>{{ label }}</a>
   {% else %}
@@ -22,7 +22,7 @@
   {% endif %}
 {% endmacro %}
 
-{% macro btn_outline_light(label, href=None, class='', **kwargs) %}
+{% macro btn_outline_light(label, href=None, class='') %}
   {% if href %}
   <a href="{{ href }}" class="btn btn-outline-light {{ class }}" {{ kwargs | xmlattr }}>{{ label }}</a>
   {% else %}
@@ -30,7 +30,7 @@
   {% endif %}
 {% endmacro %}
 
-{% macro btn_outline_dark(label, href=None, class='', **kwargs) %}
+{% macro btn_outline_dark(label, href=None, class='') %}
   {% if href %}
   <a href="{{ href }}" class="btn btn-outline-dark {{ class }}" {{ kwargs | xmlattr }}>{{ label }}</a>
   {% else %}
@@ -38,7 +38,7 @@
   {% endif %}
 {% endmacro %}
 
-{% macro btn_pill_sm(label, href=None, class='', **kwargs) %}
+{% macro btn_pill_sm(label, href=None, class='') %}
   {% if href %}
   <a href="{{ href }}" class="btn btn-pill-sm {{ class }}" {{ kwargs | xmlattr }}>{{ label }}</a>
   {% else %}

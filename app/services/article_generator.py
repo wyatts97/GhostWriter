@@ -1,6 +1,7 @@
 """Article generation engine: assembles context, calls LLM, creates articles."""
 
 import json
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -12,7 +13,7 @@ from app.models.articles import GeneratedArticle
 from app.models.prompts import Prompt
 from app.models.rss import FeedEntry
 from app.services.ghost_client import GhostClient
-from app.services.llm_client import LlmClient
+from app.services.llm_client import LlmApiError, LlmClient
 from app.services.rss_fetcher import get_recent_entries
 from app.utils import seo as seo_utils
 
@@ -114,20 +115,36 @@ async def generate_article(
             temperature=prompt.temperature,
             max_tokens=prompt.max_tokens,
         )
-    except Exception as exc:
-        logger.error("article_generation_failed", prompt_id=prompt_id, error=str(exc))
-        article = GeneratedArticle(
+    except LlmApiError as exc:
+        logger.warning(
+            "article_generation_fallback_to_chat",
             prompt_id=prompt_id,
-            schedule_id=schedule_id,
-            feed_entry_ids=json.dumps(feed_ids),
-            title="Generation Failed",
-            content="",
-            status="failed",
-            error_message=str(exc),
+            error=str(exc),
         )
-        session.add(article)
-        await session.commit()
-        return article
+        # Structured JSON call failed → fall back to plain-text generation
+        # and parse the article fields from delimited format.
+        try:
+            llm_response = await _fallback_generate_article(
+                llm_client, messages, model, prompt, context_digest
+            )
+        except Exception as fallback_exc:
+            logger.error(
+                "article_generation_failed",
+                prompt_id=prompt_id,
+                error=str(fallback_exc),
+            )
+            article = GeneratedArticle(
+                prompt_id=prompt_id,
+                schedule_id=schedule_id,
+                feed_entry_ids=json.dumps(feed_ids),
+                title="Generation Failed",
+                content="",
+                status="failed",
+                error_message=str(fallback_exc),
+            )
+            session.add(article)
+            await session.commit()
+            return article
 
     # ── 7. Parse and validate ─────────────────────────────────────────────
     title = llm_response.get("title", "Untitled Article")
@@ -234,6 +251,93 @@ async def generate_article(
     )
 
     return article
+
+
+async def _fallback_generate_article(
+    llm_client: LlmClient,
+    messages: list[dict[str, str]],
+    model: str | None,
+    prompt: Prompt,
+    context_digest: str,
+) -> dict[str, Any]:
+    """Fallback: call LLM without JSON mode and parse the text response."""
+    # Append format instructions to the user message
+    text_instructions = (
+        "\n\n---\n"
+        "IMPORTANT: Output your article using the following delimited text format "
+        "(do NOT use JSON):\n\n"
+        "---TITLE---\n"
+        "Your article title here\n\n"
+        "---EXCERPT---\n"
+        "Your excerpt here\n\n"
+        "---TAGS---\n"
+        "tag1, tag2, tag3\n\n"
+        "---CONTENT---\n"
+        "Full article in markdown here"
+    )
+    fallback_msgs = list(messages)
+    fallback_msgs[-1]["content"] += text_instructions
+
+    response = await llm_client.generate_chat(
+        messages=fallback_msgs,
+        model=model,
+        temperature=prompt.temperature,
+        max_tokens=prompt.max_tokens,
+    )
+    raw = response["choices"][0]["message"]["content"]
+    return _parse_text_article(raw)
+
+
+def _parse_text_article(raw: str) -> dict[str, Any]:
+    """Extract article fields from delimited text format."""
+    result: dict[str, Any] = {
+        "title": "Untitled Article",
+        "excerpt": "",
+        "content": "",
+        "tags": [],
+        "seo_title": "",
+        "seo_description": "",
+        "og_title": "",
+        "og_description": "",
+        "twitter_title": "",
+        "twitter_description": "",
+    }
+
+    def _extract(label: str) -> str | None:
+        m = re.search(
+            rf"^---{label}---\s*\n(.+?)(?=\n---|\Z)",
+            raw,
+            re.DOTALL | re.MULTILINE,
+        )
+        if m:
+            return m.group(1).strip()
+        return None
+
+    title = _extract("TITLE")
+    if title:
+        result["title"] = title
+
+    excerpt = _extract("EXCERPT")
+    if excerpt:
+        result["excerpt"] = excerpt
+
+    tags_raw = _extract("TAGS")
+    if tags_raw:
+        result["tags"] = [t.strip() for t in tags_raw.split(",") if t.strip()]
+
+    content = _extract("CONTENT")
+    if content:
+        result["content"] = content
+
+    # Use title / excerpt as SEO defaults
+    result["seo_title"] = result["title"]
+    result["seo_description"] = result["excerpt"]
+    result["og_title"] = result["title"]
+    result["og_description"] = result["excerpt"]
+    result["twitter_title"] = result["title"]
+    result["twitter_description"] = result["excerpt"]
+
+    return result
 
 
 def _build_context_digest(entries: list[FeedEntry]) -> str:

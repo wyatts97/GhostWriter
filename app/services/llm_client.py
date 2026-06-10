@@ -5,12 +5,121 @@ Uses a shared httpx.AsyncClient for connection pooling across all requests.
 
 import asyncio
 import json
+import re
 from typing import Any
 
 import httpx
 from structlog import get_logger
 
 logger = get_logger(__name__)
+
+
+def _try_fix_json(content: str) -> dict | None:
+    """Attempt to parse JSON from an LLM response using several strategies.
+
+    1. Direct ``json.loads``
+    2. Extract from ```json … ``` code fences
+    3. Extract outermost ``{ … }`` block
+    4. Try to repair common issues (unescaped quotes inside strings)
+    """
+    # ── 1. Direct ──────────────────────────────────────────────────────
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        pass
+
+    # ── 2. Code-fenced JSON block ──────────────────────────────────────
+    m = re.search(
+        r"```(?:json)?\s*\n?(.*?)\n?```", content, re.DOTALL
+    )
+    if m:
+        try:
+            return json.loads(m.group(1))
+        except json.JSONDecodeError:
+            pass
+
+    # ── 3. Outermost { … } block ───────────────────────────────────────
+    brace_start = content.find("{")
+    brace_end = content.rfind("}")
+    if brace_start != -1 and brace_end > brace_start:
+        block = content[brace_start : brace_end + 1]
+        try:
+            return json.loads(block)
+        except json.JSONDecodeError:
+            pass
+
+    # ── 4. Heuristic repair — unescaped quotes inside strings ─────────
+    #    Strategy: find key-value pairs where the value is a string that
+    #    contains an unescaped dq, and escape them.
+    _repaired = _heuristic_json_repair(content)
+    if _repaired is not None:
+        return _repaired
+
+    return None
+
+
+def _heuristic_json_repair(content: str) -> dict | None:
+    """Try to fix common JSON issues — mainly unescaped ``\"`` inside strings."""
+    # Only work on the outermost { … } block
+    brace_start = content.find("{")
+    brace_end = content.rfind("}")
+    if brace_start == -1 or brace_end <= brace_start:
+        return None
+    block = content[brace_start : brace_end + 1]
+
+    # Escape bare double-quotes that appear *inside* a string value but are
+    # NOT already escaped.  This is a best-effort heuristic.
+    #
+    # Walk character by character tracking string-context.  When we find a
+    # double-quote inside a string that isn't preceded by a backslash, escape it.
+    chars = list(block)
+    n = len(chars)
+    in_string = False
+    prev_was_escape = False
+    fixed = False
+    i = 0
+    while i < n:
+        c = chars[i]
+        if c == "\\" and in_string:
+            prev_was_escape = not prev_was_escape
+            i += 1
+            continue
+        if c == '"':
+            if not in_string:
+                in_string = True
+                prev_was_escape = False
+            elif not prev_was_escape:
+                # This dq *ends* the string — but if the next non-whitespace
+                # char is not a structural char (,:}]) it's likely an unescaped
+                # quote *inside* the value.  Escape it.
+                # Peek forward
+                j = i + 1
+                while j < n and chars[j] in " \t\r\n":
+                    j += 1
+                if j < n and chars[j] not in (",", ":", "}", "]"):
+                    chars.insert(i, "\\")
+                    n += 1
+                    fixed = True
+                    prev_was_escape = False
+                    i += 2
+                    continue
+                else:
+                    in_string = False
+            else:
+                # escaped quote inside string — fine
+                prev_was_escape = False
+            i += 1
+            continue
+        prev_was_escape = False
+        i += 1
+
+    if not fixed:
+        return None
+
+    try:
+        return json.loads("".join(chars))
+    except json.JSONDecodeError:
+        return None
 
 
 class LlmAuthError(Exception):
@@ -80,15 +189,17 @@ class LlmClient:
     async def generate_structured(
         self,
         messages: list[dict[str, str]],
-        output_schema: dict[str, Any],
+        output_schema: dict[str, Any] | None = None,
         model: str | None = None,
         temperature: float = 0.7,
         max_tokens: int = 4000,
     ) -> dict[str, Any]:
         """Generate a structured JSON response matching the provided schema.
 
-        Uses the response_format parameter to request JSON mode.
-        Returns the parsed JSON object.
+        Uses ``response_format: {"type": "json_object"}`` to request JSON mode.
+        If parsing fails on the first attempt, sends a correction message to the
+        LLM and retries once.  Also applies several heuristic JSON-recovery
+        strategies before giving up.
         """
         payload: dict[str, Any] = {
             "model": model or self.default_model,
@@ -98,16 +209,46 @@ class LlmClient:
             "response_format": {"type": "json_object"},
         }
 
-        response = await self._request(payload)
+        for attempt in range(2):
+            response = await self._request(payload)
 
-        try:
-            content = response["choices"][0]["message"]["content"]
-            return json.loads(content)
-        except (KeyError, IndexError, json.JSONDecodeError) as exc:
-            logger.error("llm_structured_parse_failed", error=str(exc), response=response)
+            try:
+                content = response["choices"][0]["message"]["content"]
+            except (KeyError, IndexError) as exc:
+                raise LlmApiError(
+                    f"LLM response missing content: {exc}"
+                ) from exc
+
+            # Try direct parse first, then heuristic recovery
+            result = _try_fix_json(content)
+            if result is not None:
+                return result
+
+            if attempt == 0:
+                # Send a correction prompt and retry
+                logger.warning(
+                    "llm_structured_retry",
+                    scheme=output_schema.get("schema", {}).keys() if output_schema else None,
+                )
+                messages = list(messages)
+                messages.append({"role": "assistant", "content": content})
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        "Your response was not valid JSON.  "
+                        "Make sure ALL string values are properly escaped: "
+                        "double-quotes inside strings must be backslash-escaped, "
+                        "newlines must be \\n, and no trailing commas.  "
+                        "Return valid JSON only — no prose before or after."
+                    ),
+                })
+                payload["messages"] = messages
+                continue
+
             raise LlmApiError(
-                f"Failed to parse structured response: {exc}"
-            ) from exc
+                f"Failed to parse structured response after {attempt + 1} attempt(s). "
+                f"Raw response preview: {content[:500]}"
+            )
 
     async def _request(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Make an HTTP request with retry logic and exponential backoff."""

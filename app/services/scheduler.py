@@ -2,6 +2,7 @@
 
 import json
 from datetime import datetime, timezone
+from typing import Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -168,9 +169,19 @@ async def _run_schedule_job(schedule_id: int) -> None:
         )
 
 
-async def run_schedule_now(schedule_id: int) -> dict:
-    """Manually trigger a schedule run. Returns a summary dict."""
+async def run_schedule_now(
+    schedule_id: int,
+    tracker: Any | None = None,
+) -> dict:
+    """Manually trigger a schedule run. Returns a summary dict.
+
+    If *tracker* is provided (a ``GenerationTask`` instance) its progress
+    fields are updated throughout the generation lifecycle so the UI can poll.
+    """
     from app.services.runtime_config import RuntimeConfig
+
+    if tracker:
+        tracker.update(progress_pct=10, stage="Loading schedule…")
 
     async with async_session_factory() as session:
         result = await session.execute(
@@ -189,8 +200,14 @@ async def run_schedule_now(schedule_id: int) -> dict:
         except (json.JSONDecodeError, TypeError):
             feed_ids = []
 
+        if tracker:
+            tracker.update(progress_pct=20, stage="Loading configuration…")
+
         runtime = await RuntimeConfig.load(session)
         llm_cfg = runtime.resolve_llm_config()
+
+        if tracker:
+            tracker.update(progress_pct=30, stage="Connecting to LLM…")
 
         llm_client = LlmClient(
             base_url=llm_cfg["base_url"],
@@ -203,6 +220,9 @@ async def run_schedule_now(schedule_id: int) -> dict:
             admin_api_key=runtime.ghost_admin_api_key,
         )
 
+        if tracker:
+            tracker.update(progress_pct=40, stage="Generating article…")
+
         article = await generate_article(
             prompt_id=schedule.prompt_id,
             feed_ids=feed_ids,
@@ -213,9 +233,20 @@ async def run_schedule_now(schedule_id: int) -> dict:
             ghost_client=ghost_client,
         )
 
-        return {
-            "success": True,
+        if tracker:
+            tracker.update(
+                progress_pct=95,
+                stage="Finalizing…",
+                article_id=article.id,
+                title=article.title,
+            )
+
+        result_data: dict[str, Any] = {
+            "success": article.status != "failed",
             "article_id": article.id,
             "title": article.title,
             "status": article.status,
         }
+        if article.error_message:
+            result_data["error"] = article.error_message
+        return result_data

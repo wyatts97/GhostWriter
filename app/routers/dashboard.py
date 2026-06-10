@@ -42,8 +42,18 @@ async def dashboard(request: Request, session: AsyncSession = Depends(get_sessio
     )
     recent = recent_articles.scalars().all()
 
+    # Schedules for the generate modal dropdown
+    sched_result = await session.execute(
+        select(Schedule).order_by(Schedule.name)
+    )
+    schedules = sched_result.scalars().all()
+
     context = {
         "request": request,
+        "schedules": [
+            {"id": s.id, "name": s.name, "has_prompt": s.prompt_id is not None}
+            for s in schedules
+        ],
         "stats": {
             "articles_today": articles_today.scalar() or 0,
             "articles_published": articles_published.scalar() or 0,

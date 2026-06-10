@@ -100,11 +100,14 @@
 <!-- Generate Modal -->
 {% import "components/modal.html" as modal %}
 {% call modal.modal("generate-modal", "Generate Article") %}
-<form method="post" action="/schedules/run" id="generate-form">
+<form id="generate-form" onsubmit="return startGeneration(event)">
   <div class="form-group">
     <label class="form-label">Select Schedule</label>
     <select name="schedule_id" class="select-input" required>
       <option value="">— Choose a schedule —</option>
+      {% for s in schedules %}
+      <option value="{{ s.id }}" {% if not s.has_prompt %}disabled{% endif %}>{{ s.name }}{% if not s.has_prompt %} (no prompt){% endif %}</option>
+      {% endfor %}
     </select>
     <p class="form-help">Choose a schedule to run immediately. Schedules must have a prompt assigned.</p>
   </div>
@@ -114,4 +117,110 @@
   </div>
 </form>
 {% endcall %}
+
+<!-- Progress Modal -->
+{% call modal.modal("progress-modal", "Generating Article…") %}
+<div id="progress-body">
+  <div style="margin: var(--spacing-xl) 0;">
+    <div style="height: 8px; background-color: var(--color-surface-soft); border-radius: var(--radius-full); overflow: hidden;">
+      <div id="progress-bar" style="height: 100%; width: 0%; background-color: var(--color-primary); border-radius: var(--radius-full); transition: width 0.4s ease;"></div>
+    </div>
+    <p id="progress-stage" class="body-sm text-muted" style="margin-top: var(--spacing-md);">Initializing…</p>
+  </div>
+  <div id="progress-result" style="display:none;" class="flex flex-col gap-md">
+    <p id="progress-message" class="body-md"></p>
+    <div class="flex gap-sm">
+      <a id="progress-view-btn" href="#" class="btn btn-primary" style="display:none;">View Article</a>
+      <button type="button" class="btn btn-soft" onclick="closeModal('progress-modal')">Close</button>
+    </div>
+  </div>
+</div>
+{% endcall %}
+
+<script>
+function startGeneration(e) {
+  e.preventDefault();
+  const form = document.getElementById('generate-form');
+  const fd = new FormData(form);
+  const scheduleId = fd.get('schedule_id');
+  if (!scheduleId) return false;
+
+  // Switch to progress modal
+  closeModal('generate-modal');
+  document.getElementById('progress-bar').style.width = '0%';
+  document.getElementById('progress-stage').textContent = 'Starting…';
+  document.getElementById('progress-result').style.display = 'none';
+  document.getElementById('progress-view-btn').style.display = 'none';
+  openModal('progress-modal');
+
+  // POST to /generation/run
+  fetch('/generation/run', { method: 'POST', body: fd })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.success) {
+        showProgressError(data.error || 'Failed to start generation');
+        return;
+      }
+      pollTask(data.task_id);
+    })
+    .catch(function(err) {
+      showProgressError(err.message);
+    });
+
+  return false;
+}
+
+function pollTask(taskId) {
+  var poll = setInterval(function() {
+    fetch('/generation/status/' + taskId)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!data.success) {
+          clearInterval(poll);
+          showProgressError(data.error || 'Task not found');
+          return;
+        }
+        // Update progress bar
+        document.getElementById('progress-bar').style.width = data.progress_pct + '%';
+        document.getElementById('progress-stage').textContent = data.stage || 'Processing…';
+
+        if (data.status === 'done') {
+          clearInterval(poll);
+          showProgressDone(data.title, data.article_id);
+        } else if (data.status === 'failed') {
+          clearInterval(poll);
+          showProgressError(data.error || 'Generation failed');
+        }
+        // else: keep polling
+      })
+      .catch(function(err) {
+        // Don't stop on transient network errors
+        console.error('Poll error:', err);
+      });
+  }, 1500);
+}
+
+function showProgressDone(title, articleId) {
+  document.getElementById('progress-bar').style.width = '100%';
+  document.getElementById('progress-stage').textContent = 'Complete';
+  var msg = document.getElementById('progress-message');
+  msg.textContent = 'Article "' + (title || 'Untitled') + '" has been generated.';
+  var btn = document.getElementById('progress-view-btn');
+  if (articleId) {
+    btn.href = '/articles/' + articleId;
+    btn.style.display = 'inline-flex';
+  }
+  document.getElementById('progress-result').style.display = 'flex';
+}
+
+function showProgressError(error) {
+  document.getElementById('progress-bar').style.width = '100%';
+  document.getElementById('progress-bar').style.backgroundColor = 'var(--color-accent-danger)';
+  document.getElementById('progress-stage').textContent = 'Failed';
+  var msg = document.getElementById('progress-message');
+  msg.textContent = error || 'Generation failed. Check the logs for details.';
+  msg.style.color = 'var(--color-accent-danger)';
+  document.getElementById('progress-result').style.display = 'flex';
+}
+</script>
 {% endblock %}

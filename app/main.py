@@ -48,7 +48,7 @@ templates = Jinja2Templates(directory=str(templates_dir))
 
 
 # ── Routers ──────────────────────────────────────────────────────────────────
-from app.routers import articles, dashboard, feeds, prompts, schedules, settings as settings_router
+from app.routers import articles, dashboard, feeds, generation, prompts, schedules, settings as settings_router
 
 app.include_router(dashboard.router)
 app.include_router(prompts.router, prefix="/prompts")
@@ -56,6 +56,7 @@ app.include_router(feeds.router, prefix="/feeds")
 app.include_router(schedules.router, prefix="/schedules")
 app.include_router(articles.router, prefix="/articles")
 app.include_router(settings_router.router, prefix="/settings")
+app.include_router(generation.router)
 
 
 # ── Health Check ─────────────────────────────────────────────────────────────
